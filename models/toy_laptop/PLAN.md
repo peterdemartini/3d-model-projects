@@ -178,17 +178,19 @@ Inherit defaults from AGENTS.md with the following overrides:
 
 | Version | Date       | Changes                                             |
 |---------|------------|-----------------------------------------------------|
-| 001     | 2026-03-01 | Initial scaffolding — spec established, no .scad yet |
+| 001     | 2026-03-01 | Full model generated: base (250×180×10mm) with keyboard (6-row ANSI, recessed bed, raised keycaps), trackpad recess, full-width captive hinge (3mm pin, 0.2mm radial clearance, 135° hard stop), lid (250×180×8mm) with screen pocket (220×150×2.5mm), bump stops, printed at 110° pose. All 9 validation checks PASS. |
 
 ---
 
 ## Known Issues / Watch Items
 
-- `watertight` check will **FAIL** on early exports if hinge gap geometry creates
-  open mesh edges at the pin/bore interface. Expected on v001. Fix with tighter
-  `difference()` depth or `trimesh.repair.fill_holes()`.
-- `wall_thickness` **WARN** is expected and acceptable for keycap sidewalls
-  (~0.8 mm). This is a deliberate design choice — the slicer will handle it.
+- `watertight` achieved PASS on v001 by using a full-cylinder barrel (not a
+  half-cylinder) for the hinge, avoiding T-junction non-manifold edges. The
+  pin is captive inside the bore with 0.2mm radial clearance — some manual
+  flexing after printing may be needed to free it.
+- `wall_thickness` PASS on v001 (min 5.49mm, mean 19.54mm) — keycap geometry
+  uses `linear_extrude` with scale taper, which produces thicker walls than
+  the `hull()` approach in the original design.
 - Hard stop geometry must be visually verified with `/preview-scad` at
   `hinge_angle = 135` before exporting a final version.
 - If minimum wall drops below 0.4 mm anywhere, the slicer will skip those
