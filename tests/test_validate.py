@@ -2,20 +2,15 @@
 tests/test_validate.py — Unit tests for scripts/validate.py
 """
 
-import sys
-import os
 from pathlib import Path
 
 import numpy as np
 import pytest
 import trimesh
 
-# Make the scripts directory importable
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-from validate import (  # noqa: E402
+# sys.path is configured in conftest.py
+from validate import (
     BUILD_VOLUME_MM,
-    MIN_WALL_THICKNESS_MM,
-    SUPPORTED_EXTENSIONS,
     ValidationResult,
     check_build_volume,
     check_file_exists,

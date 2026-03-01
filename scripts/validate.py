@@ -8,7 +8,6 @@ Usage:
 """
 
 import sys
-import os
 import argparse
 from pathlib import Path
 
@@ -58,9 +57,14 @@ def _fail(check: str, message: str) -> ValidationResult:
 # ── Individual checks ─────────────────────────────────────────────────────────
 
 def check_file_exists(path: Path) -> ValidationResult:
-    if path.exists() and path.is_file():
-        return _pass("file_exists", f"File found: {path}")
-    return _fail("file_exists", f"File not found: {path}")
+    """Check that the file exists, is a regular file, and is readable."""
+    if not path.exists() or not path.is_file():
+        return _fail("file_exists", f"File not found: {path}")
+    try:
+        path.open("rb").close()
+    except OSError as exc:
+        return _fail("file_exists", f"File is not readable: {path} ({exc})")
+    return _pass("file_exists", f"File found and readable: {path}")
 
 
 def check_supported_format(path: Path) -> ValidationResult:
@@ -73,7 +77,7 @@ def check_supported_format(path: Path) -> ValidationResult:
     )
 
 
-def load_mesh(path: Path):
+def load_mesh(path: Path) -> tuple[trimesh.Trimesh | None, str | None]:
     """Load a mesh and return (mesh, error_string). error_string is None on success."""
     try:
         mesh = trimesh.load(str(path), force="mesh")
@@ -89,16 +93,16 @@ def load_mesh(path: Path):
         return None, str(exc)
 
 
-def check_loadable(path: Path) -> tuple[ValidationResult, object]:
+def check_loadable(path: Path) -> tuple[ValidationResult, trimesh.Trimesh | None]:
+    """Attempt to load the mesh and return a result alongside the mesh (or None on failure)."""
     mesh, err = load_mesh(path)
     if err:
         return _fail("loadable", f"Failed to load mesh: {err}"), None
     return _pass("loadable", "Mesh loaded successfully"), mesh
 
 
-def check_non_empty(mesh) -> ValidationResult:
-    if mesh is None:
-        return _fail("non_empty", "Mesh is None")
+def check_non_empty(mesh: trimesh.Trimesh) -> ValidationResult:
+    """Check that the mesh contains at least one face and one vertex."""
     if len(mesh.faces) == 0 or len(mesh.vertices) == 0:
         return _fail("non_empty", "Mesh has no faces or vertices")
     return _pass(
@@ -107,7 +111,7 @@ def check_non_empty(mesh) -> ValidationResult:
     )
 
 
-def check_watertight(mesh) -> ValidationResult:
+def check_watertight(mesh: trimesh.Trimesh) -> ValidationResult:
     if mesh.is_watertight:
         return _pass("watertight", "Mesh is watertight (manifold)")
     # Count open (boundary) edges: edges referenced by only one face
@@ -248,7 +252,10 @@ def validate_file(path: Path, *, skip_wall_thickness: bool = False) -> list[Vali
         return results
 
     # 4. Non-empty
-    results.append(check_non_empty(mesh))
+    r = check_non_empty(mesh)
+    results.append(r)
+    if r.status == ValidationResult.FAIL:
+        return results
 
     # 5. Watertight / manifold
     results.append(check_watertight(mesh))

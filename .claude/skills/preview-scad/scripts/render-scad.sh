@@ -126,17 +126,15 @@ CMD+=("$INPUT")
 echo "Rendering: $INPUT -> $OUTPUT"
 echo "Mode: $RENDER_MODE, Size: $SIZE"
 
-if OUTPUT=$("${CMD[@]}" 2>&1); then
-    if [[ -f "$OUTPUT" ]]; then
-        echo "Success: Preview saved to $OUTPUT"
-    else
-        # OpenSCAD succeeded but check if file exists
-        if [[ -f "${BASENAME}_preview.png" ]]; then
-            echo "Success: Preview saved to ${BASENAME}_preview.png"
-        fi
-    fi
+# Capture stdout/stderr in a separate variable so $OUTPUT (the file path) is not clobbered
+OPENSCAD_LOG=$("${CMD[@]}" 2>&1) || OPENSCAD_EXIT=$?
+
+if [[ -f "$OUTPUT" ]]; then
+    echo "Success: Preview saved to $OUTPUT"
+elif [[ -f "${BASENAME}_preview.png" ]]; then
+    echo "Success: Preview saved to ${BASENAME}_preview.png"
 else
     echo "OpenSCAD output:"
-    echo "$OUTPUT"
+    echo "$OPENSCAD_LOG"
     exit 1
 fi

@@ -148,7 +148,7 @@ if [[ -f "$OUTPUT" ]]; then
     echo "--- Export Results ---"
     echo "Output: $OUTPUT"
     echo "Size: $SIZE"
-    if [[ -n "$TRIANGULAR" ]]; then
+    if [[ -n "$TRIANGLES" ]]; then
         echo "Triangles: $TRIANGLES"
     fi
 
