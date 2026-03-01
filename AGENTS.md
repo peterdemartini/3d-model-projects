@@ -70,8 +70,12 @@ Every model **must** fit within this envelope.
 | STEP   | `.step`, `.stp` | Good for engineering parts.          |
 
 ### Output Location
-All generated model files go in the `output/` directory.
-These files are **not committed to git** (see `.gitignore`).
+Generated model files go in one of two places:
+
+- **Root `output/`** — for standalone or one-off models.
+- **`models/<model-name>/output/`** — for models that have a project folder under `models/`. **Prefer this.** It keeps all project artifacts (source, spec, validation results) co-located.
+
+Neither location is committed to git (see `.gitignore`).
 
 ### Naming Convention
 ```
@@ -292,8 +296,13 @@ mesh.export("output/model_fixed.stl")
 │       ├── preview-scad/  ← /preview-scad skill (render to PNG)
 │       └── export-stl/    ← /export-stl skill (export + geometry validation)
 ├── models/                ← Source model scripts (.scad, .py)
+│   ├── <model-name>/      ← one folder per project (preferred structure)
+│   │   ├── PLAN.md        ← persistent spec (dimensions, tolerances, decisions)
+│   │   ├── simulations.md ← validation steps with expected outcomes per iteration
+│   │   ├── <name>_001.scad← versioned OpenSCAD source (or .py for build123d)
+│   │   └── output/        ← project-scoped generated files (git-ignored)
 │   └── examples/          ← Example models (reference)
-├── output/                ← Generated STL/3MF files (git-ignored)
+├── output/                ← Generated STL/3MF files for standalone models (git-ignored)
 │   └── README.md          ← Explains the directory
 ├── scripts/
 │   ├── validate.py        ← Model validation script (H2D-specific checks)
@@ -364,25 +373,32 @@ Install OpenSCAD from [openscad.org](https://openscad.org/) (macOS: `/Applicatio
 OpenSCAD skill files use underscores and zero-padded three-digit version numbers:
 
 ```
-models/<model-name>_001.scad   →  models/<model-name>_001.png
-models/<model-name>_002.scad   →  models/<model-name>_002.png
-output/<model-name>_002.stl    ← final export
+models/<model-name>/<model-name>_001.scad  →  models/<model-name>/<model-name>_001.png
+models/<model-name>/<model-name>_002.scad  →  models/<model-name>/<model-name>_002.png
+models/<model-name>/output/<model-name>_002.stl  ← final export
+```
+
+When using `version-scad.sh`, run it from inside the model's folder:
+
+```bash
+cd models/<model-name>
+../../../.claude/skills/openscad/scripts/version-scad.sh <model-name>
 ```
 
 ### Example Session
 
 ```bash
-# 1. Start a new model (creates models/stand_001.scad and renders models/stand_001.png)
+# 1. Start a new model (creates models/stand/stand_001.scad and renders models/stand/stand_001.png)
 /openscad design a phone stand with a 15-degree viewing angle
 
 # 2. Re-render after manual edits without incrementing version
-/preview-scad models/stand_001.scad
+/preview-scad models/stand/stand_001.scad
 
-# 3. Export the approved version to STL
-/export-stl models/stand_001.scad
+# 3. Export the approved version to STL into the project output folder
+/export-stl models/stand/stand_001.scad --output models/stand/output/stand_001.stl
 
 # 4. Run the full H2D validation suite
-python scripts/validate.py output/stand_001.stl
+python scripts/validate.py models/stand/output/stand_001.stl
 ```
 
 ### OpenSCAD Design Tips
@@ -405,6 +421,6 @@ Overhangs    : support if > 45°
 Bridging     : up to ~50 mm without support
 Press fit    : ±0.1 mm clearance
 OpenSCAD     : /openscad → /preview-scad → /export-stl
-Validate     : python scripts/validate.py output/<file>.stl
+Validate     : python scripts/validate.py output/<file>.stl  # or models/<name>/output/<file>.stl
 Test         : python -m pytest tests/ -v
 ```

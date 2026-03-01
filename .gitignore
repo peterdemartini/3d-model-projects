@@ -25,6 +25,15 @@ output/*.obj
 output/*.gcode
 output/*.bgcode
 
+# Project-scoped output directories (generated, not source)
+models/*/output/*.stl
+models/*/output/*.3mf
+models/*/output/*.obj
+models/*/output/*.gcode
+models/*/output/*.bgcode
+models/*/output/*.step
+models/*/output/*.stp
+
 # OpenSCAD cached files
 *.csg
 
