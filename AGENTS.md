@@ -388,7 +388,7 @@ cd models/<model-name>
 ### Example Session
 
 ```bash
-# 1. Start a new model (creates models/stand/stand_001.scad and renders stand_001.png)
+# 1. Start a new model (creates models/stand/stand_001.scad and renders models/stand/stand_001.png)
 /openscad design a phone stand with a 15-degree viewing angle
 
 # 2. Re-render after manual edits without incrementing version
@@ -421,6 +421,6 @@ Overhangs    : support if > 45°
 Bridging     : up to ~50 mm without support
 Press fit    : ±0.1 mm clearance
 OpenSCAD     : /openscad → /preview-scad → /export-stl
-Validate     : python scripts/validate.py models/<name>/output/<file>.stl
+Validate     : python scripts/validate.py output/<file>.stl  # or models/<name>/output/<file>.stl
 Test         : python -m pytest tests/ -v
 ```

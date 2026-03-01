@@ -117,7 +117,7 @@ python scripts/validate.py models/toy_laptop/output/toy_laptop_001.stl
 | Severity        | FAIL  |
 | Expected v001   | **FAIL** (expected, see notes) |
 | Expected final  | **PASS** |
-| Message pattern (FAIL) | `Mesh is NOT watertight (open edge count: N)` |
+| Message pattern (FAIL) | contains `open/non-manifold edges detected; open edge count:` |
 | Target          | `open_edge_count` must reach 0 before the model is print-ready |
 | Acceptable trend| open_edge_count should decrease monotonically each version |
 

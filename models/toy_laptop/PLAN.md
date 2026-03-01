@@ -34,12 +34,13 @@ the Bambu Lab H2D with no supports required.
 | Lid               | 250 mm    | 180 mm    | 8 mm                 |
 | Print pose (open) | 250 mm    | 180 mm    | ~187 mm              |
 
-**Print orientation:** 110° open — base flat on bed, lid rises at 70° from
-horizontal. This provides full AMS color-change access to the screen pocket and
-requires no supports on the H2D.
+**Print orientation:** 110° interior hinge angle (lid 70° above horizontal) —
+base flat on bed, lid rises at 70° from horizontal. This provides full AMS
+color-change access to the screen pocket and requires no supports on the H2D.
 
-> Z envelope at 110° ≈ base (10 mm) + hinge barrel radius (~8 mm) + lid vertical
-> rise (sin(70°) × 180 mm ≈ 169 mm) ≈ 187 mm. Well within the H2D Z limit of 325 mm.
+> Z envelope at 110° interior hinge angle (lid 70° above horizontal) ≈ base
+> (10 mm) + hinge barrel radius (~8 mm) + lid vertical rise at 70° from
+> horizontal (sin(70°) × 180 mm ≈ 169 mm) ≈ 187 mm. Well within the H2D Z limit of 325 mm.
 
 ---
 
@@ -82,12 +83,12 @@ is designed so it does not interfere when the lid is fully closed.
 | Bed recess depth    | 1.5 mm below base top surface          |
 
 Rows (back to front, near hinge to front):
-1. Function row (Esc + F1–F12)
-2. Number row (` 1–0 - = Backspace)
-3. Tab row (Tab Q–P [ ] \)
-4. Caps row (Caps A–L ; ' Enter)
-5. Shift row (LShift Z–M , . / RShift)
-6. Bottom row (Ctrl, Win, Alt, Space, Alt, Fn, Ctrl)
+1. Function row (`Esc` + `F1`–`F12`)
+2. Number row (`` ` `` `1`–`0` `-` `=` `Backspace`)
+3. Tab row (`Tab` `Q`–`P` `[` `]` `\`)
+4. Caps row (`Caps` `A`–`L` `;` `'` `Enter`)
+5. Shift row (`LShift` `Z`–`M` `,` `.` `/` `RShift`)
+6. Bottom row (`Ctrl`, `Win`, `Alt`, `Space`, `Alt`, `Fn`, `Ctrl`)
 
 ---
 
