@@ -193,7 +193,8 @@ def check_wall_thickness(mesh) -> ValidationResult:
         normals = mesh.face_normals[face_idx]
 
         # Cast inward rays and measure distance to opposite wall
-        tiny_offset = normals * 1e-3
+        # Use 1e-2 offset (0.01 mm) to avoid self-intersection from floating-point imprecision
+        tiny_offset = normals * 1e-2
         origins = points - tiny_offset
         directions = -normals
 
@@ -243,7 +244,7 @@ def validate_file(path: Path, *, skip_wall_thickness: bool = False) -> list[Vali
     # 3. Load
     r, mesh = check_loadable(path)
     results.append(r)
-    if mesh is None:
+    if r.status == ValidationResult.FAIL or mesh is None:
         return results
 
     # 4. Non-empty

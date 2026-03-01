@@ -110,6 +110,8 @@ For simple parametric models, OpenSCAD `.scad` files are also acceptable.
 openscad -o output/model_v1.stl models/model.scad
 ```
 
+**Prefer using the built-in OpenSCAD skills (see below) over calling OpenSCAD directly.** They handle versioning, preview rendering, and geometry validation automatically.
+
 ### Python — trimesh (mesh manipulation / repair)
 `trimesh` is available for mesh repair, analysis, and format conversion.
 
@@ -282,13 +284,19 @@ mesh.export("output/model_fixed.stl")
 3d-model-projects/
 ├── AGENTS.md              ← This file
 ├── README.md              ← Human-readable overview
+├── pytest.ini             ← pytest configuration
 ├── .gitignore
+├── .claude/
+│   └── skills/
+│       ├── openscad/      ← /openscad skill (versioned design + preview)
+│       ├── preview-scad/  ← /preview-scad skill (render to PNG)
+│       └── export-stl/    ← /export-stl skill (export + geometry validation)
 ├── models/                ← Source model scripts (.scad, .py)
 │   └── examples/          ← Example models (reference)
 ├── output/                ← Generated STL/3MF files (git-ignored)
 │   └── README.md          ← Explains the directory
 ├── scripts/
-│   ├── validate.py        ← Model validation script
+│   ├── validate.py        ← Model validation script (H2D-specific checks)
 │   └── requirements.txt   ← Python dependencies
 └── tests/
     └── test_validate.py   ← Unit tests for validate.py
@@ -324,6 +332,69 @@ All tests must pass before committing new code.
 
 ---
 
+## OpenSCAD Skills
+
+This repository includes Claude Code skills from [openscad-agent](https://github.com/iancanderson/openscad-agent) for an AI-driven OpenSCAD workflow. They are located in `.claude/skills/`.
+
+### Prerequisites
+
+Install OpenSCAD from [openscad.org](https://openscad.org/) (macOS: `/Applications/OpenSCAD.app` or `brew install --cask openscad`).
+
+### Available Skills
+
+| Skill | Invoke | Description |
+|-------|--------|-------------|
+| `openscad` | `/openscad` | Create versioned `.scad` files, render previews, and compare iterations |
+| `preview-scad` | `/preview-scad` | Render a `.scad` file to a PNG image for visual verification |
+| `export-stl` | `/export-stl` | Export a `.scad` file to STL with geometry validation |
+
+### Full Pipeline
+
+```
+/openscad → /preview-scad → /export-stl → python scripts/validate.py
+```
+
+1. **`/openscad`** — Design and iterate. Automatically manages versioned filenames (`model_001.scad`, `model_002.scad`, …), renders each version to a matching PNG, and lets you compare iterations visually.
+2. **`/preview-scad`** — Re-render any `.scad` file to PNG for a quick visual check without creating a new version.
+3. **`/export-stl`** — Convert the final `.scad` to STL with basic geometry validation (non-manifold, self-intersections, degenerate faces).
+4. **`python scripts/validate.py`** — Run the full H2D-specific validation suite (build volume, watertightness, wall thickness, etc.) on the exported STL.
+
+### File Naming Convention
+
+OpenSCAD skill files use underscores and zero-padded three-digit version numbers:
+
+```
+models/<model-name>_001.scad   →  models/<model-name>_001.png
+models/<model-name>_002.scad   →  models/<model-name>_002.png
+output/<model-name>_002.stl    ← final export
+```
+
+### Example Session
+
+```bash
+# 1. Start a new model (creates models/stand_001.scad and renders models/stand_001.png)
+/openscad design a phone stand with a 15-degree viewing angle
+
+# 2. Re-render after manual edits without incrementing version
+/preview-scad models/stand_001.scad
+
+# 3. Export the approved version to STL
+/export-stl models/stand_001.scad
+
+# 4. Run the full H2D validation suite
+python scripts/validate.py output/stand_001.stl
+```
+
+### OpenSCAD Design Tips
+
+- Use `$fn` to control curve smoothness (higher = smoother but slower to render)
+- Use `module` for reusable components
+- Use `difference()` to subtract shapes, `union()` to combine
+- Use `hull()` for organic shapes and smooth transitions
+- Use `union()` when combining overlapping shapes to avoid self-intersection
+
+---
+
 ## Quick-Reference Cheat Sheet
 
 ```
@@ -333,6 +404,7 @@ Min hole     : 1.0 mm diameter
 Overhangs    : support if > 45°
 Bridging     : up to ~50 mm without support
 Press fit    : ±0.1 mm clearance
+OpenSCAD     : /openscad → /preview-scad → /export-stl
 Validate     : python scripts/validate.py output/<file>.stl
 Test         : python -m pytest tests/ -v
 ```
