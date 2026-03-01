@@ -119,12 +119,15 @@ module kb_bed_recess() {
 // Z=0 here corresponds to the bottom of the bed recess (= base top - bed_depth).
 // ============================================================================
 module kb_keycaps() {
-    rows   = [row_fn, row_num, row_tab, row_cap, row_sft, row_bot];
-    n_rows = len(rows);
+    rows      = [row_fn, row_num, row_tab, row_cap, row_sft, row_bot];
+    n_rows    = len(rows);
+    max_row_w = row_mm(row_num);   // widest row sets the reference width
     for (ri = [0 : n_rows - 1]) {
         // Row 0 (fn row) is furthest back (largest Y), row 5 is closest to trackpad
-        y_off = kb_bed_margin + (n_rows - 1 - ri) * (key_d + key_gap);
-        translate([kb_bed_margin, y_off, 0]) {
+        y_off    = kb_bed_margin + (n_rows - 1 - ri) * (key_d + key_gap);
+        // Shift each row right so it is centred relative to the widest row
+        center_x = kb_bed_margin + (max_row_w - row_mm(rows[ri])) / 2;
+        translate([center_x, y_off, 0]) {
             for (ki = [0 : len(rows[ri]) - 1]) {
                 x_off = sum_w(rows[ri], ki) * (key_w + key_gap);
                 w_key = rows[ri][ki] * key_w + (rows[ri][ki] - 1) * key_gap;
