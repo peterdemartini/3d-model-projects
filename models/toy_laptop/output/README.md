@@ -26,7 +26,7 @@ See `models/toy_laptop/simulations.md` for expected validation outcomes.
 
 All 9 checks **PASS**:
 - watertight: PASS (manifold mesh, 0 open edges)
-- build_volume: PASS (250×241.6×178.9 mm — fits H2D 350×320×325 mm)
+- build_volume: PASS (250×184.5×187.0 mm — fits H2D 350×320×325 mm)
 - wall_thickness: PASS (min 5.49 mm)
 - no_degenerate_faces: PASS
 - file_exists / supported_format / loadable / non_empty / positive_volume: all PASS

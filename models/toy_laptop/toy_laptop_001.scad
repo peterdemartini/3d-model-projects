@@ -1,7 +1,7 @@
 // ============================================================================
 // toy_laptop_001.scad — Print-in-Place Toy Laptop
 // Target printer : Bambu Lab H2D
-// Print pose     : 110° interior hinge angle (lid 70° above horizontal)
+// Print pose     : 90° interior hinge angle (lid perpendicular to base)
 // No supports required at this pose.
 // ============================================================================
 
@@ -23,7 +23,7 @@ bore_r           = bore_d / 2;
 pin_r            = pin_d / 2;
 pin_head_r       = bore_r - 0.05; // head fits inside bore with tiny clearance
 pin_head_h       = 2.0;           // axial extent of each end cap on the pin
-hinge_angle      = 110;  // print-pose interior angle between base & lid planes
+hinge_angle      = 90;   // print-pose interior angle: 90° = lid perpendicular to base
 hard_stop_angle  = 135;  // absolute max opening
 stop_lug_h       = 2.5;  // shoulder height on base side barrel collar
 stop_lug_w       = 4.0;  // shoulder width (mm)
