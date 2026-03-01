@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+.env/
+.pytest_cache/
+.coverage
+htmlcov/
+*.xml
+
+# 3D output files (generated, not source)
+output/*.stl
+output/*.3mf
+output/*.obj
+output/*.gcode
+output/*.bgcode
+
+# OpenSCAD cached files
+*.csg
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
