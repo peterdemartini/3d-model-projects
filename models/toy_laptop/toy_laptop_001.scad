@@ -225,19 +225,28 @@ module lid() {
             translate([0, -stop_lug_h, 0])
                 cube([base_w, stop_lug_h, stop_lug_w]);
 
-            // ── Bump stops (2 domes on inner face at Z=0) ─────────────────
-            // Use a cylinder capped with a sphere (hull) to avoid tangent
-            // intersection at Z=0. The dome base is a flat circle on Z=0.
+            // ── Bump stops (2 domes on OUTER face at Z=-lid_h) ────────────
+            // Moved from inner face to outer face so they print overhang-free.
+            // In the 90° print pose the outer face faces upward (+Y world),
+            // so domes on it point straight up — no overhang.
+            // Functionally identical: the outer face contacts the base top
+            // when the lid is closed, and these domes keep the lid from
+            // pressing directly on the keycaps.
+            //
+            // Dome protrudes OUTWARD from outer face = in the -Z direction
+            // (lid-local -Z → global +Y in print pose = upward, printable).
+            // Hull between a flat disk flush with the outer face and a raised
+            // scaled sphere avoids tangent-face non-manifold edges.
             bump_xl = bezel + stop_inset;
             bump_xr = base_w - bezel - stop_inset;
             bump_y  = base_d - bezel - stop_inset;
             for (bx = [bump_xl, bump_xr]) {
-                translate([bx, bump_y, 0])
+                translate([bx, bump_y, -lid_h])
                     hull() {
-                        // Flat disk at Z=0 (no tangent issue)
+                        // Flat disk flush with outer face (at Z=0 in local-to-outer coords)
                         cylinder(r=stop_r, h=0.01, $fn=$fn);
-                        // Sphere raised so its bottom is flush with Z=0
-                        translate([0, 0, stop_h_dome])
+                        // Sphere offset outward (−Z = away from lid body)
+                        translate([0, 0, -stop_h_dome])
                             scale([1, 1, 0.3])
                                 sphere(r=stop_r, $fn=$fn);
                     }
