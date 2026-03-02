@@ -54,7 +54,19 @@ Every model **must** fit within this envelope.
 
 ### Multi-Color / Multi-Material (AMS)
 - Up to **4 materials** per print via the AMS (Automatic Material System).
-- When creating multi-color models, use separate mesh bodies/components per color in the source and tag them in the `.3mf` file, or rely on BambuStudio's "split by color" feature.
+- Bambu Studio assigns filaments **per object**, not per face. A multi-color 3MF must
+  contain one `<object>` element per color with `<m:basematerials>` material group assignments.
+- **`color()` in OpenSCAD is editor-preview only** — it is NOT preserved in any export format
+  (STL, 3MF, OBJ). Do not rely on `color()` for actual multi-color output.
+- Face-color / `p:colorgroup` per-triangle XML is visual-display only — it does **not**
+  drive AMS filament slot selection in Bambu Studio.
+- **Correct multi-color workflow for OpenSCAD models**:
+  1. Add a `RENDER_COLOR = "all"` variable to the SCAD file (default = full preview).
+  2. Export white body: `openscad -D 'RENDER_COLOR="white"' --export-format 3mf -o white.3mf model.scad`
+  3. Export black body: `openscad -D 'RENDER_COLOR="black"' --export-format 3mf -o black.3mf model.scad`
+  4. Merge: `python scripts/colorize_3mf.py --white white.3mf --black black.3mf --output model.3mf`
+  5. The output 3MF contains separate `white_parts` and `black_parts` objects; import into
+     Bambu Studio and assign each object to an AMS filament slot via right-click → Assign Filament.
 - For dual-extrusion soluble supports, designate one extruder for PVA or HIPS.
 
 ---
@@ -190,17 +202,25 @@ python scripts/validate.py output/model.stl --skip-wall-thickness
 
 ### Checks Performed
 
-| # | Check                  | Severity | Description |
-|---|------------------------|----------|-------------|
-| 1 | `file_exists`          | FAIL     | File must exist and be readable |
-| 2 | `supported_format`     | FAIL     | Extension must be in `.stl .3mf .obj .step .stp` |
-| 3 | `loadable`             | FAIL     | File must be parseable by trimesh |
-| 4 | `non_empty`            | FAIL     | Mesh must have at least one face and vertex |
-| 5 | `watertight`           | FAIL     | Mesh must be manifold (no open/non-manifold edges) |
-| 6 | `build_volume`         | FAIL     | Model must fit within 350 × 320 × 325 mm |
-| 7 | `positive_volume`      | WARN     | Volume should be positive (correct normals) |
-| 8 | `no_degenerate_faces`  | WARN     | No zero-area triangles |
-| 9 | `wall_thickness`       | WARN     | Minimum sampled wall ≥ 0.8 mm (advisory) |
+| #  | Check                   | Severity | Description |
+|----|-------------------------|----------|-------------|
+| 1  | `file_exists`           | FAIL     | File must exist and be readable |
+| 2  | `supported_format`      | FAIL     | Extension must be in `.stl .3mf .obj .step .stp` |
+| 3  | `loadable`              | FAIL     | File must be parseable by trimesh |
+| 4  | `non_empty`             | FAIL     | Mesh must have at least one face and vertex |
+| 5  | `watertight`            | FAIL     | Mesh must be manifold (no open/non-manifold edges) |
+| 6  | `build_volume`          | FAIL     | Model must fit within 350 × 320 × 325 mm |
+| 7  | `positive_volume`       | WARN     | Volume should be positive (correct normals) |
+| 8  | `no_degenerate_faces`   | WARN     | No zero-area triangles |
+| 9  | `wall_thickness`        | WARN     | Minimum sampled wall ≥ 0.8 mm (advisory, ray-sampled) |
+| 10 | `expected_dimensions`   | FAIL     | Bounding box matches `--expected-dims WxDxH` ±5 mm (optional flag) |
+| 11 | `base_on_bed`           | FAIL     | Geometry present at Z ≈ 0 — base sits flat on print bed |
+| 12 | `hinge_parameters`      | FAIL     | Pin/bore clearance 0.1–0.5 mm, barrel wall ≥ min, hard stop ≤ 135° (requires `.meta.json`) |
+| 13 | `closure_clearance`     | FAIL     | Key/screen clearance ≥ 2 mm, key protrusion ≤ bump stop height (requires `.meta.json`) |
+| 14 | `3mf_has_colors`        | WARN     | 3MF contains ≥ 2 objects + `<m:basematerials>` for Bambu AMS multi-filament printing |
+
+Checks 10–11 apply to all models; checks 12–13 require a sidecar `{model}.meta.json` file
+(see [Metadata Sidecar](#metadata-sidecar) below); check 14 applies to `.3mf` files only.
 
 ### Result Levels
 | Level | Meaning |
@@ -271,13 +291,36 @@ mesh.export("output/model_fixed.stl")
 
 ## Workflow
 
+### Single-Color Model
 ```
-1. Design  →  Write model code in models/
-2. Generate →  Run the script → output/model_v1.stl
-3. Validate →  python scripts/validate.py output/model_v1.stl
-4. Fix      →  Address any FAIL/WARN results → re-run step 2-3
+1. Design   →  Write model code in models/
+2. Generate →  Run the script → output/model_v1.3mf  (or .stl)
+3. Validate →  python scripts/validate.py output/model_v1.3mf
+4. Fix      →  Address any FAIL results → re-run steps 2-3
 5. Slice    →  Import into BambuStudio → review supports, infill, etc.
 6. Export   →  Save as .3mf or send .gcode/.bgcode to printer
+```
+
+### Multi-Color Model (Bambu AMS)
+```
+1. Design   →  Write model with RENDER_COLOR = "all" guard in SCAD (see AMS section above)
+2. Generate →  Export white body:
+               openscad -D 'RENDER_COLOR="white"' --export-format 3mf \
+                 -o output/model_v1_white.3mf model.scad
+               Export black body:
+               openscad -D 'RENDER_COLOR="black"' --export-format 3mf \
+                 -o output/model_v1_black.3mf model.scad
+3. Colorize →  python scripts/colorize_3mf.py \
+                 --white output/model_v1_white.3mf \
+                 --black output/model_v1_black.3mf \
+                 --output output/model_v1.3mf
+4. Validate →  python scripts/validate.py output/model_v1.3mf
+               All 14 checks must PASS or WARN; check #14 (3mf_has_colors) must PASS
+5. Fix      →  Address any FAIL results → re-run steps 2-4
+6. Slice    →  Import output/model_v1.3mf into BambuStudio
+               Objects panel shows 'white_parts' and 'black_parts'
+               Right-click each object → Assign Filament → select AMS slot
+7. Export   →  Save .3mf project or send .gcode/.bgcode to printer
 ```
 
 ---

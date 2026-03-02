@@ -358,6 +358,48 @@ def check_closure_clearance(meta: dict) -> ValidationResult:
     return _fail("closure_clearance", "; ".join(issues))
 
 
+def check_3mf_has_colors(path: Path) -> ValidationResult:
+    """
+    Check that a 3MF file contains multi-object color data for Bambu AMS printing.
+
+    A Bambu-compatible multi-color 3MF must have:
+      - At least 2 <object> elements (one per color/filament)
+      - At least 1 <m:basematerials> group with displaycolor attributes
+
+    OpenSCAD's color() is preview-only and is NOT exported to 3MF.
+    Use scripts/colorize_3mf.py to produce a properly structured multi-color 3MF.
+    """
+    if path.suffix.lower() != ".3mf":
+        return _pass("3mf_has_colors", "Not a 3MF file — color check skipped")
+
+    import zipfile as _zipfile
+    from xml.etree import ElementTree as _ET
+
+    CORE_NS = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
+    MAT_NS  = "http://schemas.microsoft.com/3dmanufacturing/material/2015/02"
+
+    try:
+        with _zipfile.ZipFile(path) as zf:
+            raw = zf.read("3D/3dmodel.model")
+        root = _ET.fromstring(raw)
+        objects   = root.findall(f".//{{{CORE_NS}}}object")
+        materials = root.findall(f".//{{{MAT_NS}}}basematerials")
+        if len(objects) >= 2 and len(materials) >= 1:
+            return _pass(
+                "3mf_has_colors",
+                f"{len(objects)} color object(s), {len(materials)} material group(s) — "
+                "ready for Bambu AMS multi-filament printing",
+            )
+        return _warn(
+            "3mf_has_colors",
+            f"Only {len(objects)} object(s) and {len(materials)} material group(s) found — "
+            "will import as monochrome in Bambu Studio. "
+            "Run: python scripts/colorize_3mf.py --white <w.3mf> --black <b.3mf> --output <out.3mf>",
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _warn("3mf_has_colors", f"Could not inspect 3MF color data: {exc}")
+
+
 def load_meta(path: Path) -> dict | None:
     """Load sidecar metadata JSON if it exists (e.g. model.meta.json for model.3mf)."""
     meta_path = path.parent / (path.stem + ".meta.json")
@@ -476,6 +518,9 @@ def validate_file(
             results.append(check_hinge_parameters(meta))
         if "closure" in meta:
             results.append(check_closure_clearance(meta))
+
+    # 14. Multi-color / Bambu AMS check — WARN if 3MF is monochrome
+    results.append(check_3mf_has_colors(path))
 
     return results
 

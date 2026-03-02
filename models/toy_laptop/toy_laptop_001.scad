@@ -340,6 +340,21 @@ module hinge_pin() {
 //   runs along Y instead of X. Translated by [base_w, 0, 0] first so that after
 //   90° CCW rotation the model stays in the positive-XYZ octant.
 //   New footprint: X = base_d = 180 mm, Y = base_w = 250 mm, Z = 190 mm.
+//
+// ── Color export control ──────────────────────────────────────────────────────
+// RENDER_COLOR controls which color body is rendered/exported.
+//   "all"   — full model with color() wrappers (default; used for OpenSCAD GUI preview)
+//   "white" — only white parts (base, hinge pin, lid body); for per-color 3MF export
+//   "black" — only black parts (keycaps, trackpad plate, screen plate); for per-color export
+//
+// Usage:
+//   openscad --export-format 3mf toy_laptop_001.scad                      → full preview
+//   openscad --export-format 3mf -D 'RENDER_COLOR="white"' ... → white body only
+//   openscad --export-format 3mf -D 'RENDER_COLOR="black"' ... → black body only
+//
+// After exporting both bodies, run scripts/colorize_3mf.py to merge them into a
+// single Bambu-compatible multi-object 3MF with <m:basematerials> assignments.
+RENDER_COLOR = "all";   // "all" | "white" | "black"
 
 // Barrel/pin axis is at Y=base_d, Z=base_h (rear top edge of base)
 hinge_y = base_d;
@@ -352,35 +367,39 @@ translate([base_w, 0, 0])
 rotate([0, 0, 90]) {
 
     // ── WHITE parts ─────────────────────────────────────────────────────
-    // Base body (without keycaps)
-    color("white")
-        base();
+    if (RENDER_COLOR == "all" || RENDER_COLOR == "white") {
+        // Base body (without keycaps)
+        color("white")
+            base();
 
-    // Hinge pin
-    color("white")
-        translate([0, hinge_y, hinge_z])
-            hinge_pin();
+        // Hinge pin
+        color("white")
+            translate([0, hinge_y, hinge_z])
+                hinge_pin();
 
-    // Lid body (without screen plate)
-    color("white")
-        translate([0, hinge_y, hinge_z])
-            rotate([(180 - hinge_angle), 0, 0])
-                lid_body();
+        // Lid body (without screen plate)
+        color("white")
+            translate([0, hinge_y, hinge_z])
+                rotate([(180 - hinge_angle), 0, 0])
+                    lid_body();
+    }
 
     // ── BLACK parts ─────────────────────────────────────────────────────
-    // Keycap tops — placed at keyboard bed origin (same as kb_bed_recess origin)
-    color("black")
-        translate([kb_x0 - kb_bed_margin, kb_y0 - kb_bed_margin, base_h - bed_depth])
-            kb_keycaps();
+    if (RENDER_COLOR == "all" || RENDER_COLOR == "black") {
+        // Keycap tops — placed at keyboard bed origin (same as kb_bed_recess origin)
+        color("black")
+            translate([kb_x0 - kb_bed_margin, kb_y0 - kb_bed_margin, base_h - bed_depth])
+                kb_keycaps();
 
-    // Trackpad indicator (black plate in trackpad recess)
-    color("black")
-        trackpad_plate();
+        // Trackpad indicator (black plate in trackpad recess)
+        color("black")
+            trackpad_plate();
 
-    // Screen indicator (black plate inside screen pocket)
-    color("black")
-        translate([0, hinge_y, hinge_z])
-            rotate([(180 - hinge_angle), 0, 0])
-                screen_plate();
+        // Screen indicator (black plate inside screen pocket)
+        color("black")
+            translate([0, hinge_y, hinge_z])
+                rotate([(180 - hinge_angle), 0, 0])
+                    screen_plate();
+    }
 
 } // end rotate Z
