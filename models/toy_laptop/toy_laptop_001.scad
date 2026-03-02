@@ -41,7 +41,7 @@ key_h      = 2.5;    // keycap height above bed surface (mm)
 key_gap    = 1.5;    // gap between keycaps (mm)
 bed_depth  = 1.5;    // depth of keyboard bed recess below base top surface (mm)
 kb_bed_margin = 4;   // extra margin around key grid in the recessed bed
-n_kb_rows  = 6;      // number of key rows (fn, num, tab, cap, sft, bot)
+n_kb_rows  = 5;      // number of key rows (num, tab, cap, sft, bot)
 
 // Total Y extent of the keyboard bed (keys + gaps + margins)
 bed_d_total = n_kb_rows * (key_d + key_gap) - key_gap + 2 * kb_bed_margin;
@@ -69,7 +69,6 @@ stop_inset  = 8;     // inset from screen pocket corner
 // ── Key layout row widths (unit = 1× key_w) ───────────────────────────────────
 // Each inner list is one row of keycap widths. Rows are ordered back-to-front
 // (index 0 = function row near hinge, index 5 = bottom row near trackpad).
-row_fn  = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];         // 13 fn keys
 row_num = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0];    // 13 + backspace
 row_tab = [1.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];    // tab + 12 keys
 row_cap = [1.75, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.25];             // caps + 11 + enter
@@ -124,7 +123,7 @@ module kb_bed_recess() {
 // Z=0 here corresponds to the bottom of the bed recess (= base top - bed_depth).
 // ============================================================================
 module kb_keycaps() {
-    rows      = [row_fn, row_num, row_tab, row_cap, row_sft, row_bot];
+    rows      = [row_num, row_tab, row_cap, row_sft, row_bot];
     max_row_w = row_mm(row_num);   // widest row sets the reference width
     for (ri = [0 : n_kb_rows - 1]) {
         // Row 0 (fn row) is furthest back (largest Y), row 5 is closest to trackpad
