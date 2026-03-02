@@ -14,6 +14,12 @@ base_d  = 180;   // Y — base depth    (mm)
 base_h  = 10;    // Z — base body thickness (mm)
 lid_h   = 8;     // Z — lid  body thickness (mm)
 
+// ── Screen / bezel parameters (defined here so kb_y0 can reference bezel) ────
+bezel        = 15;    // bezel width all sides (mm)
+screen_depth = 2.5;   // pocket depth into lid inner face (mm)
+screen_w     = base_w - 2 * bezel;   // 220 mm
+screen_h_val = base_d - 2 * bezel;   // 150 mm
+
 // ── Hinge parameters ─────────────────────────────────────────────────────────
 pin_d            = 3.0;   // pin diameter                (mm)
 bore_d           = 3.4;   // bore inner diameter — 0.2 mm radial clearance each side
@@ -35,10 +41,17 @@ key_h      = 2.5;    // keycap height above bed surface (mm)
 key_gap    = 1.5;    // gap between keycaps (mm)
 bed_depth  = 1.5;    // depth of keyboard bed recess below base top surface (mm)
 kb_bed_margin = 4;   // extra margin around key grid in the recessed bed
+n_kb_rows  = 6;      // number of key rows (fn, num, tab, cap, sft, bot)
 
-// Keyboard grid origin (from base front-left corner, on top surface)
+// Total Y extent of the keyboard bed (keys + gaps + margins)
+bed_d_total = n_kb_rows * (key_d + key_gap) - key_gap + 2 * kb_bed_margin;
+
+// Keyboard grid origin (from base front-left corner, on top surface).
+// kb_y0 is computed so the fn row (back row) sits exactly `bezel` mm from the
+// hinge edge — matching the screen-pocket inset on the lid for clean closure.
+// bed back edge = kb_y0 - kb_bed_margin + bed_d_total  =  base_d - bezel
 kb_x0  = 10;   // left edge of keyboard area from base left
-kb_y0  = 90;   // bottom edge of keyboard area from base front
+kb_y0  = base_d - bezel - bed_d_total + kb_bed_margin;
 
 // ── Trackpad parameters ───────────────────────────────────────────────────────
 tp_w     = 80;    // trackpad width  (mm)
@@ -46,12 +59,6 @@ tp_d     = 55;    // trackpad depth  (mm)
 tp_depth = 0.5;   // recess depth below base top surface (mm)
 tp_x     = (base_w - tp_w) / 2;
 tp_y     = 15;    // from base front edge
-
-// ── Screen / bezel parameters ─────────────────────────────────────────────────
-bezel        = 15;    // bezel width all sides (mm)
-screen_depth = 2.5;   // pocket depth into lid inner face (mm)
-screen_w     = base_w - 2 * bezel;   // 220 mm
-screen_h_val = base_d - 2 * bezel;   // 150 mm
 
 // ── Bump-stop parameters ──────────────────────────────────────────────────────
 stop_d      = 3.0;   // dome diameter (mm)
@@ -106,10 +113,8 @@ module keycap(w, d, h) {
 // Returns a solid box that will be cut from the base to form the recessed bed.
 // ============================================================================
 module kb_bed_recess() {
-    // widest row determines bed width
+    // widest row determines bed width; bed_d_total and n_kb_rows are module-level
     bed_w = row_mm(row_num) + 2 * kb_bed_margin;
-    n_rows = 6;
-    bed_d_total = n_rows * (key_d + key_gap) - key_gap + 2 * kb_bed_margin;
     cube([bed_w, bed_d_total, bed_depth + 0.01]);  // slight overshoot for clean cut
 }
 
@@ -120,11 +125,10 @@ module kb_bed_recess() {
 // ============================================================================
 module kb_keycaps() {
     rows      = [row_fn, row_num, row_tab, row_cap, row_sft, row_bot];
-    n_rows    = len(rows);
     max_row_w = row_mm(row_num);   // widest row sets the reference width
-    for (ri = [0 : n_rows - 1]) {
+    for (ri = [0 : n_kb_rows - 1]) {
         // Row 0 (fn row) is furthest back (largest Y), row 5 is closest to trackpad
-        y_off    = kb_bed_margin + (n_rows - 1 - ri) * (key_d + key_gap);
+        y_off    = kb_bed_margin + (n_kb_rows - 1 - ri) * (key_d + key_gap);
         // Shift each row right so it is centred relative to the widest row
         center_x = kb_bed_margin + (max_row_w - row_mm(rows[ri])) / 2;
         translate([center_x, y_off, 0]) {

@@ -8,6 +8,7 @@ Usage:
 """
 
 import sys
+import json
 import argparse
 from pathlib import Path
 
@@ -266,6 +267,109 @@ def check_base_on_bed(mesh, z_tolerance_mm: float = 0.5) -> ValidationResult:
     )
 
 
+def check_hinge_parameters(meta: dict) -> ValidationResult:
+    """
+    Verify print-in-place hinge geometry from sidecar metadata.
+
+    Checks:
+    - bore_d > pin_d (pin fits in bore)
+    - radial clearance (bore_d - pin_d)/2 in [0.1, 0.5] mm
+    - barrel wall (barrel_od - bore_d)/2 ≥ min_wall_mm
+    - hard_stop_angle ≤ 135°
+    """
+    h = meta["hinge"]
+    pin_d      = float(h["pin_d_mm"])
+    bore_d     = float(h["bore_d_mm"])
+    barrel_od  = float(h["barrel_od_mm"])
+    min_wall   = float(h["min_wall_mm"])
+    hard_stop  = float(h["hard_stop_angle_deg"])
+
+    radial_clearance = (bore_d - pin_d) / 2
+    barrel_wall      = (barrel_od - bore_d) / 2
+
+    issues = []
+    if bore_d <= pin_d:
+        issues.append(f"bore_d ({bore_d}) ≤ pin_d ({pin_d}): pin cannot fit in bore")
+    if not (0.1 <= radial_clearance <= 0.5):
+        issues.append(
+            f"radial clearance {radial_clearance:.2f} mm outside [0.10, 0.50] mm "
+            f"(too tight → fused; too loose → sloppy)"
+        )
+    if barrel_wall < min_wall:
+        issues.append(
+            f"barrel wall {barrel_wall:.2f} mm < minimum {min_wall} mm "
+            f"(risk of fracture during deflashing)"
+        )
+    if hard_stop > 135:
+        issues.append(f"hard_stop_angle {hard_stop}° > 135° physical maximum")
+
+    if not issues:
+        return _pass(
+            "hinge_parameters",
+            f"Pin {pin_d} mm ∅, bore {bore_d} mm ∅, radial clearance "
+            f"{radial_clearance:.2f} mm, barrel wall {barrel_wall:.2f} mm, "
+            f"hard stop {hard_stop:.0f}°",
+        )
+    return _fail("hinge_parameters", "; ".join(issues))
+
+
+def check_closure_clearance(meta: dict) -> ValidationResult:
+    """
+    Verify that the laptop lid can close fully without interference.
+
+    Checks (using world-Y coordinates measured from the base front edge):
+    - keyboard back edge Y < screen pocket front edge Y when closed (≥ 2 mm gap)
+    - key protrusion above base top ≤ bump stop height (lid rests on bumps, not keycaps)
+    """
+    c = meta["closure"]
+    kb_back  = float(c["keyboard_back_edge_y_mm"])
+    sc_front = float(c["screen_pocket_front_y_when_closed_mm"])
+    key_prot = float(c["key_protrusion_above_base_mm"])
+    bump_h   = float(c["bump_stop_height_mm"])
+
+    MIN_CLEARANCE_MM = 2.0
+    issues = []
+
+    clearance = sc_front - kb_back
+    if clearance <= 0:
+        issues.append(
+            f"Keys (back edge Y={kb_back:.1f} mm) overlap screen pocket "
+            f"(front edge Y={sc_front:.1f} mm when closed) — lid CANNOT close"
+        )
+    elif clearance < MIN_CLEARANCE_MM:
+        issues.append(
+            f"Closure clearance {clearance:.1f} mm < {MIN_CLEARANCE_MM} mm minimum "
+            f"(keyboard back Y={kb_back:.1f}, screen pocket front Y={sc_front:.1f})"
+        )
+
+    if key_prot > bump_h:
+        issues.append(
+            f"Key protrusion {key_prot:.2f} mm > bump stop height {bump_h:.2f} mm — "
+            f"lid would rest on keycaps instead of bump stops when closed"
+        )
+
+    if not issues:
+        return _pass(
+            "closure_clearance",
+            f"Keyboard back edge Y={kb_back:.1f} mm, screen pocket front Y={sc_front:.1f} mm "
+            f"(clearance {clearance:.1f} mm); key protrusion {key_prot:.2f} mm ≤ "
+            f"bump stop {bump_h:.2f} mm",
+        )
+    return _fail("closure_clearance", "; ".join(issues))
+
+
+def load_meta(path: Path) -> dict | None:
+    """Load sidecar metadata JSON if it exists (e.g. model.meta.json for model.3mf)."""
+    meta_path = path.parent / (path.stem + ".meta.json")
+    if not meta_path.exists():
+        return None
+    try:
+        with meta_path.open() as f:
+            return json.load(f)
+    except Exception as exc:  # noqa: BLE001
+        return None
+
+
 def check_wall_thickness(mesh) -> ValidationResult:
     """
     Advisory check: sample ray-based wall thickness at a small number of points.
@@ -364,6 +468,14 @@ def validate_file(
 
     # 11. Base on bed — Z_min ≈ 0 (base flat on print bed)
     results.append(check_base_on_bed(mesh))
+
+    # 12 & 13. Hinge parameters + closure clearance (from sidecar .meta.json if present)
+    meta = load_meta(path)
+    if meta is not None:
+        if "hinge" in meta:
+            results.append(check_hinge_parameters(meta))
+        if "closure" in meta:
+            results.append(check_closure_clearance(meta))
 
     return results
 
