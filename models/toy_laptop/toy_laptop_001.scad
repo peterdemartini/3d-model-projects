@@ -143,6 +143,8 @@ module kb_keycaps() {
 
 // ============================================================================
 // BASE MODULE
+// NOTE: keycaps are NOT included here — they are added at assembly level
+// as a separate colored object so they can be rendered black independently.
 // ============================================================================
 module base() {
     union() {
@@ -163,10 +165,6 @@ module base() {
                 rotate([0, 90, 0])
                     cylinder(r=bore_r, h=base_w + 2, $fn=$fn);
         }
-
-        // ── Keycaps (added on top of bed recess) ─────────────────────────
-        translate([kb_x0 - kb_bed_margin, kb_y0 - kb_bed_margin, base_h - bed_depth])
-            kb_keycaps();
 
         // ── Hinge barrel (base side) ──────────────────────────────────────
         // Full cylinder at Y=base_d, Z=base_h (the hinge axis).
@@ -266,6 +264,38 @@ module lid() {
 }
 
 // ============================================================================
+// LID (white body only — screen indicator plate is separate below)
+// ============================================================================
+module lid_body() {
+    lid();
+}
+
+// ============================================================================
+// SCREEN INDICATOR PLATE
+// A thin black plate flush with the inner face of the lid, placed inside the
+// screen pocket recess. In the 90° print pose the inner face faces -Y (toward
+// the viewer), so this plate faces the viewer as the "screen".
+// Thickness is 0.4 mm (1 layer) — sits at Z = -screen_depth + 0.4 from inner face.
+// In lid-local coords: inner face is Z=0; plate sits at Z = -(screen_depth - 0.4).
+// ============================================================================
+module screen_plate() {
+    plate_thick = 0.4;
+    translate([bezel, bezel, -(screen_depth - plate_thick)])
+        cube([screen_w, screen_h_val, plate_thick]);
+}
+
+// ============================================================================
+// TRACKPAD INDICATOR PLATE
+// A thin black plate flush with the base top surface inside the trackpad recess.
+// Thickness = 0.4 mm sitting at Z = base_h - tp_depth + 0.
+// ============================================================================
+module trackpad_plate() {
+    plate_thick = 0.4;
+    translate([tp_x, tp_y, base_h - tp_depth])
+        cube([tp_w, tp_d, plate_thick]);
+}
+
+// ============================================================================
 // HINGE PIN MODULE
 // Full-width pin with enlarged end caps to prevent axial escape.
 // The pin sits inside the bore with 0.2 mm radial clearance.
@@ -304,21 +334,53 @@ module hinge_pin() {
 //     local +Z  →  global -Y   (inner face / screen faces toward viewer, -Y)
 //   This is the correct open-laptop pose: base flat, lid vertical, screen
 //   facing forward (−Y = toward the person sitting in front of the printer).
+//
+// Z-axis rotation:
+//   The whole assembly is rotated 90° around Z so the long axis (base_w=250mm)
+//   runs along Y instead of X. Translated by [base_w, 0, 0] first so that after
+//   90° CCW rotation the model stays in the positive-XYZ octant.
+//   New footprint: X = base_d = 180 mm, Y = base_w = 250 mm, Z = 190 mm.
 
 // Barrel/pin axis is at Y=base_d, Z=base_h (rear top edge of base)
 hinge_y = base_d;
 hinge_z = base_h;
 
-// Base (flat on print bed)
-base();
+// ── Wrap entire assembly in Z-rotation ────────────────────────────────────────
+// translate([base_w, 0, 0]) moves origin to X=250 before rotation so after
+// 90° CCW rotation the part stays in positive-XY quadrant.
+translate([base_w, 0, 0])
+rotate([0, 0, 90]) {
 
-// Hinge pin (at barrel axis)
-translate([0, hinge_y, hinge_z])
-    hinge_pin();
+    // ── WHITE parts ─────────────────────────────────────────────────────
+    // Base body (without keycaps)
+    color("white")
+        base();
 
-// Lid (rotated to print pose)
-// rotate(+[180 - hinge_angle]) tips the lid away from the base so the
-// screen faces the viewer (inner face at Z=0 rotates toward +Y/front).
-translate([0, hinge_y, hinge_z])
-    rotate([(180 - hinge_angle), 0, 0])
-        lid();
+    // Hinge pin
+    color("white")
+        translate([0, hinge_y, hinge_z])
+            hinge_pin();
+
+    // Lid body (without screen plate)
+    color("white")
+        translate([0, hinge_y, hinge_z])
+            rotate([(180 - hinge_angle), 0, 0])
+                lid_body();
+
+    // ── BLACK parts ─────────────────────────────────────────────────────
+    // Keycap tops — placed at keyboard bed origin (same as kb_bed_recess origin)
+    color("black")
+        translate([kb_x0 - kb_bed_margin, kb_y0 - kb_bed_margin, base_h - bed_depth])
+            kb_keycaps();
+
+    // Trackpad indicator (black plate in trackpad recess)
+    color("black")
+        trackpad_plate();
+
+    // Screen indicator (black plate inside screen pocket)
+    color("black")
+        translate([0, hinge_y, hinge_z])
+            rotate([(180 - hinge_angle), 0, 0])
+                screen_plate();
+
+} // end rotate Z
