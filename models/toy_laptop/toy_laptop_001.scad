@@ -283,20 +283,15 @@ module hinge_pin() {
 //   Hinge axis: X-axis at Y=base_d, Z=base_h.
 //
 // Lid rotation:
-//   Interior hinge angle = 110° (print pose).
-//   The lid's inner face faces -Z in lid-local coords (screen pocket opens downward).
-//   When assembled, the lid rotates around the hinge axis.
-//   Rotation angle from "lid closed (flat on base)":
-//     closed = 0° rotation (lid over base, inner face down)
-//     open   = rotation so interior angle between base plane and lid plane = 110°
+//   Interior hinge angle = 90° (print pose: lid perpendicular to base).
+//   In lid-local coords: hinge axis at Y=0 Z=0; inner face at Z=0 (screen);
+//   lid body extends in +Y; outer face at Z=-lid_h.
 //
-//   In lid-local coords, hinge edge is at Y=0, lid extends in +Y.
-//   The base is at Z=base_h after the hinge axis.
-//   To get the lid at 110° interior angle:
-//     - Place lid so its hinge edge is at the hinge axis point
-//     - Rotate by -(180 - hinge_angle) around X axis  [= -70°]
-//     This tips the lid so that the angle between base plane (+Y) and
-//     lid plane (+Y rotated) is 110°.
+//   Rotation around X by +(180 - hinge_angle) = +90°:
+//     local +Y  →  global +Z   (lid rises straight up)
+//     local +Z  →  global -Y   (inner face / screen faces toward viewer, -Y)
+//   This is the correct open-laptop pose: base flat, lid vertical, screen
+//   facing forward (−Y = toward the person sitting in front of the printer).
 
 // Barrel/pin axis is at Y=base_d, Z=base_h (rear top edge of base)
 hinge_y = base_d;
@@ -310,6 +305,8 @@ translate([0, hinge_y, hinge_z])
     hinge_pin();
 
 // Lid (rotated to print pose)
+// rotate(+[180 - hinge_angle]) tips the lid away from the base so the
+// screen faces the viewer (inner face at Z=0 rotates toward +Y/front).
 translate([0, hinge_y, hinge_z])
-    rotate([-(180 - hinge_angle), 0, 0])
+    rotate([(180 - hinge_angle), 0, 0])
         lid();
