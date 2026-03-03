@@ -364,7 +364,9 @@ def check_3mf_has_colors(path: Path) -> ValidationResult:
 
     A Bambu-compatible multi-color 3MF must have:
       - At least 2 <object> elements (one per color/filament)
-      - At least 1 <m:basematerials> group with displaycolor attributes
+      - At least 1 <m:colorgroup> element (Bambu's format, one group per object)
+        OR at least 1 <m:basematerials> group (generic 3MF spec fallback)
+      - p:UUID attributes on objects (Production Extension, required by Bambu)
 
     OpenSCAD's color() is preview-only and is NOT exported to 3MF.
     Use scripts/colorize_3mf.py to produce a properly structured multi-color 3MF.
@@ -377,22 +379,43 @@ def check_3mf_has_colors(path: Path) -> ValidationResult:
 
     CORE_NS = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
     MAT_NS  = "http://schemas.microsoft.com/3dmanufacturing/material/2015/02"
+    PROD_NS = "http://schemas.microsoft.com/3dmanufacturing/production/2015/06"
 
     try:
         with _zipfile.ZipFile(path) as zf:
             raw = zf.read("3D/3dmodel.model")
         root = _ET.fromstring(raw)
-        objects   = root.findall(f".//{{{CORE_NS}}}object")
-        materials = root.findall(f".//{{{MAT_NS}}}basematerials")
-        if len(objects) >= 2 and len(materials) >= 1:
+        objects     = root.findall(f".//{{{CORE_NS}}}object")
+        colorgroups = root.findall(f".//{{{MAT_NS}}}colorgroup")
+        basemats    = root.findall(f".//{{{MAT_NS}}}basematerials")
+        # Check for Production Extension p:UUID (Bambu requirement)
+        prod_uuid_attr = f"{{{PROD_NS}}}UUID"
+        has_prod_uuid = any(obj.get(prod_uuid_attr) for obj in objects)
+
+        color_groups_total = len(colorgroups) + len(basemats)
+        format_note = (
+            "Bambu colorgroup" if colorgroups
+            else "basematerials" if basemats
+            else "none"
+        )
+
+        if len(objects) >= 2 and color_groups_total >= 1 and has_prod_uuid:
             return _pass(
                 "3mf_has_colors",
-                f"{len(objects)} color object(s), {len(materials)} material group(s) — "
+                f"{len(objects)} color object(s), {color_groups_total} color group(s) "
+                f"({format_note}), p:UUID present — "
                 "ready for Bambu AMS multi-filament printing",
             )
+        issues = []
+        if len(objects) < 2:
+            issues.append(f"only {len(objects)} object(s) (need ≥ 2)")
+        if color_groups_total < 1:
+            issues.append("no color groups found")
+        if not has_prod_uuid:
+            issues.append("missing p:UUID on objects (Production Extension required by Bambu)")
         return _warn(
             "3mf_has_colors",
-            f"Only {len(objects)} object(s) and {len(materials)} material group(s) found — "
+            f"Multi-color AMS data incomplete ({'; '.join(issues)}) — "
             "will import as monochrome in Bambu Studio. "
             "Run: python scripts/colorize_3mf.py --white <w.3mf> --black <b.3mf> --output <out.3mf>",
         )
