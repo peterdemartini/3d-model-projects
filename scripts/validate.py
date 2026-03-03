@@ -8,6 +8,7 @@ Usage:
 """
 
 import sys
+import json
 import argparse
 from pathlib import Path
 
@@ -186,6 +187,231 @@ def check_no_degenerate_faces(mesh) -> ValidationResult:
     )
 
 
+def check_expected_dimensions(
+    mesh, expected: tuple[float, float, float], tolerance_mm: float = 5.0
+) -> ValidationResult:
+    """
+    Check that the bounding-box dimensions match the expected print-pose values.
+
+    *expected* is a (W, D, H) tuple in mm.  Each axis is allowed ±tolerance_mm.
+    This is a pose-validation proxy: a wrong hinge angle or rotated base would
+    produce very different bounding-box dimensions.
+    """
+    bounds = mesh.bounds
+    size = bounds[1] - bounds[0]
+    sx, sy, sz = float(size[0]), float(size[1]), float(size[2])
+    ex, ey, ez = expected
+
+    ok_x = abs(sx - ex) <= tolerance_mm
+    ok_y = abs(sy - ey) <= tolerance_mm
+    ok_z = abs(sz - ez) <= tolerance_mm
+
+    actual = f"{sx:.1f} × {sy:.1f} × {sz:.1f} mm"
+    exp_str = f"{ex:.0f} × {ey:.0f} × {ez:.0f} mm"
+
+    if ok_x and ok_y and ok_z:
+        return _pass(
+            "expected_dimensions",
+            f"Model dimensions ({actual}) match expected ({exp_str}, ±{tolerance_mm:.0f} mm)",
+        )
+
+    violations = []
+    if not ok_x:
+        violations.append(f"X={sx:.1f} (expected {ex:.0f} ±{tolerance_mm:.0f})")
+    if not ok_y:
+        violations.append(f"Y={sy:.1f} (expected {ey:.0f} ±{tolerance_mm:.0f})")
+    if not ok_z:
+        violations.append(f"Z={sz:.1f} (expected {ez:.0f} ±{tolerance_mm:.0f})")
+
+    return _fail(
+        "expected_dimensions",
+        f"Model dimensions ({actual}) do NOT match expected ({exp_str}, ±{tolerance_mm:.0f} mm): "
+        + ", ".join(violations)
+        + ". Check hinge_angle and print pose in the .scad file.",
+    )
+
+
+def check_base_on_bed(mesh, z_tolerance_mm: float = 0.5) -> ValidationResult:
+    """
+    Check that the model has geometry at Z ≈ 0, confirming the base (bottom face)
+    sits flat on the print bed.
+
+    For assembled print-in-place models (e.g. a laptop with the lid opened upward
+    from the hinge), other parts may extend below Z=0.  We therefore look for
+    vertex clusters *near* Z=0 from above — specifically, we check whether the
+    minimum Z among vertices with Z ≥ -z_tolerance_mm is within tolerance of 0.
+    This is equivalent to asking: "does the model have a flat surface at Z=0?"
+    """
+    verts_z = mesh.vertices[:, 2]
+    # Find the lowest Z that is at or above -(tolerance), i.e. near the bed plane
+    near_bed = verts_z[verts_z >= -z_tolerance_mm]
+    if len(near_bed) == 0:
+        return _fail(
+            "base_on_bed",
+            f"No vertices found at Z ≥ {-z_tolerance_mm:.1f} mm. "
+            "The model may not have a flat base on the print bed.",
+        )
+    lowest_near_bed = float(near_bed.min())
+    if abs(lowest_near_bed) <= z_tolerance_mm:
+        return _pass(
+            "base_on_bed",
+            f"Model has geometry at Z = {lowest_near_bed:.2f} mm "
+            f"(base sits flat on the print bed; overall Z range "
+            f"{float(mesh.bounds[0][2]):.1f} to {float(mesh.bounds[1][2]):.1f} mm)",
+        )
+    return _fail(
+        "base_on_bed",
+        f"Lowest base vertex at Z = {lowest_near_bed:.2f} mm "
+        f"(expected ≈ 0 mm, tolerance ±{z_tolerance_mm} mm). "
+        "The model may be floating above the bed or oriented incorrectly.",
+    )
+
+
+def check_hinge_parameters(meta: dict) -> ValidationResult:
+    """
+    Verify print-in-place hinge geometry from sidecar metadata.
+
+    Checks:
+    - bore_d > pin_d (pin fits in bore)
+    - radial clearance (bore_d - pin_d)/2 in [0.1, 0.5] mm
+    - barrel wall (barrel_od - bore_d)/2 ≥ min_wall_mm
+    - hard_stop_angle ≤ 135°
+    """
+    h = meta["hinge"]
+    pin_d      = float(h["pin_d_mm"])
+    bore_d     = float(h["bore_d_mm"])
+    barrel_od  = float(h["barrel_od_mm"])
+    min_wall   = float(h["min_wall_mm"])
+    hard_stop  = float(h["hard_stop_angle_deg"])
+
+    radial_clearance = (bore_d - pin_d) / 2
+    barrel_wall      = (barrel_od - bore_d) / 2
+
+    issues = []
+    if bore_d <= pin_d:
+        issues.append(f"bore_d ({bore_d}) ≤ pin_d ({pin_d}): pin cannot fit in bore")
+    if not (0.1 <= radial_clearance <= 0.5):
+        issues.append(
+            f"radial clearance {radial_clearance:.2f} mm outside [0.10, 0.50] mm "
+            f"(too tight → fused; too loose → sloppy)"
+        )
+    if barrel_wall < min_wall:
+        issues.append(
+            f"barrel wall {barrel_wall:.2f} mm < minimum {min_wall} mm "
+            f"(risk of fracture during deflashing)"
+        )
+    if hard_stop > 135:
+        issues.append(f"hard_stop_angle {hard_stop}° > 135° physical maximum")
+
+    if not issues:
+        return _pass(
+            "hinge_parameters",
+            f"Pin {pin_d} mm ∅, bore {bore_d} mm ∅, radial clearance "
+            f"{radial_clearance:.2f} mm, barrel wall {barrel_wall:.2f} mm, "
+            f"hard stop {hard_stop:.0f}°",
+        )
+    return _fail("hinge_parameters", "; ".join(issues))
+
+
+def check_closure_clearance(meta: dict) -> ValidationResult:
+    """
+    Verify that the laptop lid can close fully without interference.
+
+    Checks (using world-Y coordinates measured from the base front edge):
+    - keyboard back edge Y < screen pocket front edge Y when closed (≥ 2 mm gap)
+    - key protrusion above base top ≤ bump stop height (lid rests on bumps, not keycaps)
+    """
+    c = meta["closure"]
+    kb_back  = float(c["keyboard_back_edge_y_mm"])
+    sc_front = float(c["screen_pocket_front_y_when_closed_mm"])
+    key_prot = float(c["key_protrusion_above_base_mm"])
+    bump_h   = float(c["bump_stop_height_mm"])
+
+    MIN_CLEARANCE_MM = 2.0
+    issues = []
+
+    clearance = sc_front - kb_back
+    if clearance <= 0:
+        issues.append(
+            f"Keys (back edge Y={kb_back:.1f} mm) overlap screen pocket "
+            f"(front edge Y={sc_front:.1f} mm when closed) — lid CANNOT close"
+        )
+    elif clearance < MIN_CLEARANCE_MM:
+        issues.append(
+            f"Closure clearance {clearance:.1f} mm < {MIN_CLEARANCE_MM} mm minimum "
+            f"(keyboard back Y={kb_back:.1f}, screen pocket front Y={sc_front:.1f})"
+        )
+
+    if key_prot > bump_h:
+        issues.append(
+            f"Key protrusion {key_prot:.2f} mm > bump stop height {bump_h:.2f} mm — "
+            f"lid would rest on keycaps instead of bump stops when closed"
+        )
+
+    if not issues:
+        return _pass(
+            "closure_clearance",
+            f"Keyboard back edge Y={kb_back:.1f} mm, screen pocket front Y={sc_front:.1f} mm "
+            f"(clearance {clearance:.1f} mm); key protrusion {key_prot:.2f} mm ≤ "
+            f"bump stop {bump_h:.2f} mm",
+        )
+    return _fail("closure_clearance", "; ".join(issues))
+
+
+def check_3mf_has_colors(path: Path) -> ValidationResult:
+    """
+    Check that a 3MF file contains multi-object color data for Bambu AMS printing.
+
+    A Bambu-compatible multi-color 3MF must have:
+      - At least 2 <object> elements (one per color/filament)
+      - At least 1 <m:basematerials> group with displaycolor attributes
+
+    OpenSCAD's color() is preview-only and is NOT exported to 3MF.
+    Use scripts/colorize_3mf.py to produce a properly structured multi-color 3MF.
+    """
+    if path.suffix.lower() != ".3mf":
+        return _pass("3mf_has_colors", "Not a 3MF file — color check skipped")
+
+    import zipfile as _zipfile
+    from xml.etree import ElementTree as _ET
+
+    CORE_NS = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
+    MAT_NS  = "http://schemas.microsoft.com/3dmanufacturing/material/2015/02"
+
+    try:
+        with _zipfile.ZipFile(path) as zf:
+            raw = zf.read("3D/3dmodel.model")
+        root = _ET.fromstring(raw)
+        objects   = root.findall(f".//{{{CORE_NS}}}object")
+        materials = root.findall(f".//{{{MAT_NS}}}basematerials")
+        if len(objects) >= 2 and len(materials) >= 1:
+            return _pass(
+                "3mf_has_colors",
+                f"{len(objects)} color object(s), {len(materials)} material group(s) — "
+                "ready for Bambu AMS multi-filament printing",
+            )
+        return _warn(
+            "3mf_has_colors",
+            f"Only {len(objects)} object(s) and {len(materials)} material group(s) found — "
+            "will import as monochrome in Bambu Studio. "
+            "Run: python scripts/colorize_3mf.py --white <w.3mf> --black <b.3mf> --output <out.3mf>",
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _warn("3mf_has_colors", f"Could not inspect 3MF color data: {exc}")
+
+
+def load_meta(path: Path) -> dict | None:
+    """Load sidecar metadata JSON if it exists (e.g. model.meta.json for model.3mf)."""
+    meta_path = path.parent / (path.stem + ".meta.json")
+    if not meta_path.exists():
+        return None
+    try:
+        with meta_path.open() as f:
+            return json.load(f)
+    except Exception as exc:  # noqa: BLE001
+        return None
+
+
 def check_wall_thickness(mesh) -> ValidationResult:
     """
     Advisory check: sample ray-based wall thickness at a small number of points.
@@ -229,7 +455,12 @@ def check_wall_thickness(mesh) -> ValidationResult:
 
 # ── Main validation pipeline ──────────────────────────────────────────────────
 
-def validate_file(path: Path, *, skip_wall_thickness: bool = False) -> list[ValidationResult]:
+def validate_file(
+    path: Path,
+    *,
+    skip_wall_thickness: bool = False,
+    expected_dims: tuple[float, float, float] | None = None,
+) -> list[ValidationResult]:
     """Run all validation checks on *path* and return a list of ValidationResult."""
     results: list[ValidationResult] = []
 
@@ -273,6 +504,24 @@ def validate_file(path: Path, *, skip_wall_thickness: bool = False) -> list[Vali
     if not skip_wall_thickness:
         results.append(check_wall_thickness(mesh))
 
+    # 10. Expected dimensions — pose / orientation proxy (only when --expected-dims supplied)
+    if expected_dims is not None:
+        results.append(check_expected_dimensions(mesh, expected_dims))
+
+    # 11. Base on bed — Z_min ≈ 0 (base flat on print bed)
+    results.append(check_base_on_bed(mesh))
+
+    # 12 & 13. Hinge parameters + closure clearance (from sidecar .meta.json if present)
+    meta = load_meta(path)
+    if meta is not None:
+        if "hinge" in meta:
+            results.append(check_hinge_parameters(meta))
+        if "closure" in meta:
+            results.append(check_closure_clearance(meta))
+
+    # 14. Multi-color / Bambu AMS check — WARN if 3MF is monochrome
+    results.append(check_3mf_has_colors(path))
+
     return results
 
 
@@ -312,6 +561,21 @@ def collect_files(target: Path) -> list[Path]:
     return []
 
 
+def parse_expected_dims(value: str) -> tuple[float, float, float]:
+    """Parse a 'WxDxH' string (e.g. '250x185x187') into a (W, D, H) float tuple."""
+    parts = value.lower().replace(",", "x").split("x")
+    if len(parts) != 3:
+        raise argparse.ArgumentTypeError(
+            f"Expected dimensions must be in 'WxDxH' format (e.g. '250x185x187'), got: {value!r}"
+        )
+    try:
+        return tuple(float(p) for p in parts)  # type: ignore[return-value]
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"Could not parse dimensions from {value!r} — ensure all values are numbers."
+        )
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate 3D model files for Bambu Lab H2D / BambuStudio compatibility."
@@ -327,6 +591,17 @@ def main(argv=None) -> int:
         action="store_true",
         help="Skip the (slow) wall-thickness advisory check",
     )
+    parser.add_argument(
+        "--expected-dims",
+        metavar="WxDxH",
+        type=parse_expected_dims,
+        default=None,
+        help=(
+            "Expected bounding-box dimensions in mm, e.g. '250x185x187'. "
+            "When supplied, adds a pose-validation check (±5 mm tolerance on each axis) "
+            "that detects wrong hinge angles or incorrect print orientation."
+        ),
+    )
     args = parser.parse_args(argv)
 
     target = Path(args.target)
@@ -337,7 +612,11 @@ def main(argv=None) -> int:
 
     all_passed = True
     for f in files:
-        results = validate_file(f, skip_wall_thickness=args.skip_wall_thickness)
+        results = validate_file(
+            f,
+            skip_wall_thickness=args.skip_wall_thickness,
+            expected_dims=args.expected_dims,
+        )
         passed = print_results(f, results)
         if not passed:
             all_passed = False

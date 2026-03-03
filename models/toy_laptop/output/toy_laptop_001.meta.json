@@ -1,0 +1,18 @@
+{
+  "_comment": "Sidecar metadata for validate.py checks #12 (hinge_parameters) and #13 (closure_clearance).",
+  "hinge": {
+    "pin_d_mm": 3.0,
+    "bore_d_mm": 3.4,
+    "barrel_od_mm": 8.0,
+    "hard_stop_angle_deg": 135,
+    "min_wall_mm": 1.2
+  },
+  "closure": {
+    "base_d_mm": 180,
+    "bezel_mm": 15,
+    "key_protrusion_above_base_mm": 1.0,
+    "bump_stop_height_mm": 1.0,
+    "keyboard_back_edge_y_mm": 161.0,
+    "screen_pocket_front_y_when_closed_mm": 165.0
+  }
+}

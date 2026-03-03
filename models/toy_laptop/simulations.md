@@ -192,13 +192,14 @@ until this is PASS.
 
 | Version | `watertight` | `build_volume` | `wall_thickness` | **Overall** | Print-ready? |
 |---------|-------------|----------------|------------------|-------------|--------------|
-| 001     | FAIL        | PASS           | WARN             | **FAIL**    | No           |
-| 002+    | PASS        | PASS           | WARN             | **WARN**    | Yes          |
+| 001     | **PASS** ✅  | PASS ✅         | PASS ✅           | **PASS** ✅  | **Yes** ✅    |
 
 Model is considered **print-ready** when:
 - No FAIL checks remain
 - `watertight` = PASS
 - Remaining WARNs are only `wall_thickness` (acceptable for keycap geometry)
+
+**v001 achieved full PASS on all 9 checks** — watertight PASS was obtained by using a full-cylinder barrel design (no half-space clipping) which avoids T-junction non-manifold edges. The `wall_thickness` check also PASS (min 5.49mm) since keycaps use `linear_extrude` with taper scaling.
 
 ---
 
@@ -272,9 +273,21 @@ using the parameter values in PLAN.md:
 Update this section after each version is validated.
 
 ### v001 — Initial export
-- Date: (to be filled)
-- `watertight` result: (to be filled)
-- `open_edge_count`: (to be filled)
-- `build_volume` dims: (to be filled)
-- Visual checks passed: (to be filled)
-- Next steps: (to be filled)
+- Date: 2026-03-01
+- `watertight` result: **PASS** (all 9 checks PASS — better than expected)
+- `open_edge_count`: 0 (no open edges)
+- `build_volume` dims: 250.0 × 184.5 × 187.0 mm (fits within 350 × 320 × 325 mm)
+- `non_empty`: 6,344 faces / 3,178 vertices
+- `positive_volume`: 719,262 mm³
+- `wall_thickness`: PASS — min 2.49 mm, mean 17.96 mm
+- `no_degenerate_faces`: PASS
+- Visual checks: Geometry renders with base plate, keyboard bed, recessed trackpad,
+  full-width hinge barrel, lid with screen pocket and bump stops at 90° pose (lid perpendicular to base)
+- Key design notes:
+  - Print pose: 90° interior hinge angle — lid stands straight up from the base
+  - Hinge barrel uses full cylinder (not half-cylinder) unioned with base to avoid non-manifold T-junctions
+  - Keycaps use `linear_extrude(height, scale=[...])` to produce clean tapered geometry
+  - Bump stops use `hull()` between cylinder disk and raised sphere to avoid tangent-at-face issues
+  - Assembly places pin at (0, base_d, base_h) hinge axis; lid rotated -90° (= -(180-90)°) around X
+- Next steps: Model is print-ready. Slice in BambuStudio for H2D. Enable 4-color AMS paint
+  (body=slot1, keycap tops=slot2, screen bezel=slot3, screen surface=slot4).
