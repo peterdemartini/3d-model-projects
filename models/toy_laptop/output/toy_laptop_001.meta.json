@@ -5,7 +5,10 @@
     "bore_d_mm": 3.4,
     "barrel_od_mm": 8.0,
     "hard_stop_angle_deg": 135,
-    "min_wall_mm": 1.2
+    "min_wall_mm": 1.2,
+    "type": "interleaved_knuckle",
+    "n_knuckles": 7,
+    "knuckle_gap_mm": 0.2
   },
   "closure": {
     "base_d_mm": 180,

@@ -115,7 +115,28 @@ def check_non_empty(mesh: trimesh.Trimesh) -> ValidationResult:
 def check_watertight(mesh: trimesh.Trimesh) -> ValidationResult:
     if mesh.is_watertight:
         return _pass("watertight", "Mesh is watertight (manifold)")
-    # Count open (boundary) edges: edges referenced by only one face
+    # For multi-body meshes (e.g. print-in-place hinge with disconnected
+    # base and lid), check each body individually. If all bodies are
+    # individually watertight, the combined mesh is valid for slicing.
+    try:
+        bodies = mesh.split()
+        if len(bodies) > 1:
+            non_wt = [i for i, b in enumerate(bodies) if not b.is_watertight]
+            if not non_wt:
+                return _pass(
+                    "watertight",
+                    f"Mesh has {len(bodies)} separate bodies, each individually watertight",
+                )
+            return _fail(
+                "watertight",
+                f"Mesh has {len(bodies)} separate bodies; "
+                f"body(ies) {non_wt} are NOT watertight. "
+                "Non-watertight models may cause slicing failures in BambuStudio.",
+            )
+    except Exception:  # noqa: BLE001
+        pass
+
+    # Single body that isn't watertight — count open edges
     try:
         edges = mesh.edges_sorted.reshape(-1, 2)
         _, counts = np.unique(edges, axis=0, return_counts=True)
