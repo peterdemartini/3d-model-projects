@@ -2,6 +2,8 @@
 // toy_laptop_001.scad — Print-in-Place Toy Laptop
 // Target printer : Bambu Lab H2D
 // Print pose     : 90° interior hinge angle (lid perpendicular to base)
+// Hinge          : Interleaved-knuckle print-in-place (7 knuckles, captive pin)
+//                  Pin integrated with lid; rotates inside base knuckle bores.
 // No supports required at this pose.
 // ============================================================================
 
@@ -22,17 +24,23 @@ screen_h_val = base_d - 2 * bezel;   // 150 mm
 
 // ── Hinge parameters ─────────────────────────────────────────────────────────
 pin_d            = 3.0;   // pin diameter                (mm)
-bore_d           = 3.4;   // bore inner diameter — 0.2 mm radial clearance each side
-barrel_od        = 8.0;   // barrel outer diameter; wall=(8-3.4)/2=2.3 mm > 1.2 mm min
+bore_d           = 3.6;   // bore inner diameter — 0.3 mm radial clearance each side
+barrel_od        = 8.0;   // barrel outer diameter; wall=(8-3.6)/2=2.2 mm > 1.2 mm min
 barrel_r         = barrel_od / 2;
 bore_r           = bore_d / 2;
 pin_r            = pin_d / 2;
-pin_head_r       = bore_r - 0.05; // head fits inside bore with tiny clearance
+pin_head_r       = bore_r - 0.15; // head fits inside bore with 0.15 mm clearance
 pin_head_h       = 2.0;           // axial extent of each end cap on the pin
 hinge_angle      = 90;   // print-pose interior angle: 90° = lid perpendicular to base
 hard_stop_angle  = 135;  // absolute max opening
 stop_lug_h       = 2.5;  // shoulder height on base side barrel collar
 stop_lug_w       = 4.0;  // shoulder width (mm)
+
+// ── Knuckle parameters (interleaved print-in-place hinge) ───────────────────
+n_knuckles    = 7;       // total knuckles (odd count: base gets 4, lid gets 3)
+knuckle_gap   = 0.3;     // axial clearance between adjacent knuckles (mm)
+knuckle_w     = (base_w - (n_knuckles - 1) * knuckle_gap) / n_knuckles;
+                          // ≈ 35.46 mm per knuckle
 
 // ── Keyboard parameters ───────────────────────────────────────────────────────
 key_w      = 14.0;   // keycap width  (mm)
@@ -60,12 +68,6 @@ tp_depth = 0.5;   // recess depth below base top surface (mm)
 tp_x     = (base_w - tp_w) / 2;
 tp_y     = 15;    // from base front edge
 
-// ── Bump-stop parameters ──────────────────────────────────────────────────────
-stop_d      = 3.0;   // dome diameter (mm)
-stop_h_dome = 1.0;   // dome height   (mm)
-stop_r      = stop_d / 2;
-stop_inset  = 8;     // inset from screen pocket corner
-
 // ── Key layout row widths (unit = 1× key_w) ───────────────────────────────────
 // Each inner list is one row of keycap widths. Rows are ordered back-to-front
 // (index 0 = function row near hinge, index 5 = bottom row near trackpad).
@@ -81,6 +83,9 @@ row_bot = [1.25, 1.25, 1.25, 6.25, 1.25, 1.25, 1.25];                           
 
 // Sum of widths[0 .. n-1]
 function sum_w(v, n) = (n <= 0) ? 0 : sum_w(v, n-1) + v[n-1];
+
+// X-position of the start of knuckle i (0-indexed)
+function knuckle_x(i) = i * (knuckle_w + knuckle_gap);
 
 // Total row width in mm (last gap not counted)
 function row_mm(v) = sum_w(v, len(v)) * (key_w + key_gap) - key_gap;
@@ -147,41 +152,51 @@ module kb_keycaps() {
 // as a separate colored object so they can be rendered black independently.
 // ============================================================================
 module base() {
-    union() {
-        // ── Main base plate with cutouts ─────────────────────────────────
-        difference() {
+    difference() {
+        union() {
+            // ── Main base plate ──────────────────────────────────────────
             cube([base_w, base_d, base_h]);
 
-            // Keyboard bed recess (cut from top surface)
-            translate([kb_x0 - kb_bed_margin, kb_y0 - kb_bed_margin, base_h - bed_depth])
-                kb_bed_recess();
+            // ── Hinge barrel knuckles (base side: even indices 0, 2, 4, 6) ──
+            // Full cylinders centered at hinge axis (Y=base_d, Z=base_h).
+            for (i = [0 : 2 : n_knuckles - 1]) {
+                translate([knuckle_x(i), base_d, base_h])
+                    rotate([0, 90, 0])
+                        cylinder(r=barrel_r, h=knuckle_w, $fn=$fn);
+            }
 
-            // Trackpad recess (cut from top surface)
-            translate([tp_x, tp_y, base_h - tp_depth])
-                cube([tp_w, tp_d, tp_depth + 0.1]);
-
-            // Bore through the barrel (overshoot 1 mm each side)
-            translate([-1, base_d, base_h])
-                rotate([0, 90, 0])
-                    cylinder(r=bore_r, h=base_w + 2, $fn=$fn);
+            // ── Hard-stop shoulders (on inner base knuckles 2 and 4) ─────
+            for (i = [2, 4]) {
+                translate([knuckle_x(i), base_d + barrel_r * 0.5, base_h + barrel_r - 1])
+                    cube([knuckle_w, stop_lug_h, stop_lug_w]);
+            }
         }
 
-        // ── Hinge barrel (base side) ──────────────────────────────────────
-        // Full cylinder at Y=base_d, Z=base_h (the hinge axis).
-        // The lower half of the cylinder merges into the base cube.
-        // The upper half protrudes above. The bore cuts through it.
-        // We don't clip the cylinder to avoid T-junction issues.
-        translate([0, base_d, base_h])
-            rotate([0, 90, 0])
-                cylinder(r=barrel_r, h=base_w, $fn=$fn);
+        // ── All subtractive cuts ─────────────────────────────────────────
 
-        // ── Hard-stop shoulder ────────────────────────────────────────────
-        // Rectangular lug protruding from the top of the base barrel.
-        // Located at Y > barrel axis, above base_h.
-        // Starts at Z = base_h + barrel_r - 1 (just below top of barrel)
-        // to avoid creating coplanar faces.
-        translate([0, base_d + barrel_r * 0.5, base_h + barrel_r - 1])
-            cube([base_w, stop_lug_h, stop_lug_w]);
+        // Keyboard bed recess (cut from top surface)
+        translate([kb_x0 - kb_bed_margin, kb_y0 - kb_bed_margin, base_h - bed_depth])
+            kb_bed_recess();
+
+        // Trackpad recess (cut from top surface)
+        translate([tp_x, tp_y, base_h - tp_depth])
+            cube([tp_w, tp_d, tp_depth + 0.1]);
+
+        // ── Bore through each base knuckle (lid's pin rotates here) ─────
+        for (i = [0 : 2 : n_knuckles - 1]) {
+            translate([knuckle_x(i) - 0.1, base_d, base_h])
+                rotate([0, 90, 0])
+                    cylinder(r=bore_r, h=knuckle_w + 0.2, $fn=$fn);
+        }
+
+        // ── Slots for lid knuckles to rotate through the base rear edge ─
+        // At lid knuckle X positions (odd indices 1, 3, 5), cut a slot
+        // so the full-cylinder lid knuckle can sweep through 0°–135°.
+        // Extra 0.3 mm clearance in Y and Z to prevent binding.
+        for (i = [1 : 2 : n_knuckles - 1]) {
+            translate([knuckle_x(i) - knuckle_gap, base_d - barrel_r - 0.3, base_h - barrel_r - 0.3])
+                cube([knuckle_w + 2 * knuckle_gap, barrel_r + 1.3, barrel_od + 2.6]);
+        }
     }
 }
 
@@ -205,59 +220,46 @@ module lid() {
             translate([0, 0, -lid_h])
                 cube([base_w, base_d, lid_h]);
 
-            // ── Hinge barrel (lid half — upper semicylinder) ──────────────
-            // Barrel axis at Y=0, Z=0 (same as hinge axis).
-            // The lid's barrel half is the part with Z ≥ 0 (pointing toward base).
-            // This is the upper half from the lid's perspective.
-            rotate([0, 90, 0])
-                intersection() {
-                    cylinder(r=barrel_r, h=base_w, $fn=$fn);
-                    // Keep Z ≥ 0 half (above hinge axis, toward base)
-                    translate([-barrel_r - 1, -barrel_r - 1, 0])
-                        cube([barrel_od + 2, barrel_od + 2, barrel_r + 1]);
-                }
-
-            // ── Stop lug on lid barrel collar ─────────────────────────────
-            // Protrudes from the lid barrel in the +Z direction.
-            // Contacts base hard-stop shoulder when lid reaches hard_stop_angle.
-            translate([0, -stop_lug_h, 0])
-                cube([base_w, stop_lug_h, stop_lug_w]);
-
-            // ── Bump stops (2 domes on OUTER face at Z=-lid_h) ────────────
-            // Moved from inner face to outer face so they print overhang-free.
-            // In the 90° print pose the outer face faces upward (+Y world),
-            // so domes on it point straight up — no overhang.
-            // Functionally identical: the outer face contacts the base top
-            // when the lid is closed, and these domes keep the lid from
-            // pressing directly on the keycaps.
-            //
-            // Dome protrudes OUTWARD from outer face = in the -Z direction
-            // (lid-local -Z → global +Y in print pose = upward, printable).
-            // Hull between a flat disk flush with the outer face and a raised
-            // scaled sphere avoids tangent-face non-manifold edges.
-            bump_xl = bezel + stop_inset;
-            bump_xr = base_w - bezel - stop_inset;
-            bump_y  = base_d - bezel - stop_inset;
-            for (bx = [bump_xl, bump_xr]) {
-                translate([bx, bump_y, -lid_h])
-                    hull() {
-                        // Flat disk flush with outer face (at Z=0 in local-to-outer coords)
-                        cylinder(r=stop_r, h=0.01, $fn=$fn);
-                        // Sphere offset outward (−Z = away from lid body)
-                        translate([0, 0, -stop_h_dome])
-                            scale([1, 1, 0.3])
-                                sphere(r=stop_r, $fn=$fn);
-                    }
+            // ── Hinge barrel knuckles (lid side: odd indices 1, 3, 5) ────
+            // Full cylinders at Y=0, Z=0 (hinge axis). These interleave
+            // with base knuckles at even indices.
+            for (i = [1 : 2 : n_knuckles - 1]) {
+                translate([knuckle_x(i), 0, 0])
+                    rotate([0, 90, 0])
+                        cylinder(r=barrel_r, h=knuckle_w, $fn=$fn);
             }
+
+            // ── Integrated pin shaft ──────────────────────────────────────
+            // Pin runs through all base knuckle bores (even indices 0–6).
+            // Spans from inside knuckle 0 to inside knuckle 6 so the
+            // interleaving provides end retention.
+            pin_start = knuckle_gap;
+            pin_end   = base_w - knuckle_gap;
+            translate([pin_start, 0, 0])
+                rotate([0, 90, 0])
+                    cylinder(r=pin_r, h=pin_end - pin_start, $fn=$fn);
+
+            // ── Pin retention caps ────────────────────────────────────────
+            // Enlarged ends inside the outermost base knuckles (0 and 6).
+            // Head radius = bore_r - 0.05: fits inside bore but cannot
+            // pass out through a knuckle end face.
+            // Left cap (inside base knuckle 0)
+            translate([knuckle_gap, 0, 0])
+                rotate([0, 90, 0])
+                    cylinder(r=pin_head_r, h=pin_head_h, $fn=$fn);
+            // Right cap (inside base knuckle 6)
+            translate([base_w - knuckle_gap - pin_head_h, 0, 0])
+                rotate([0, 90, 0])
+                    cylinder(r=pin_head_r, h=pin_head_h, $fn=$fn);
+
+            // ── Stop lug on middle lid knuckle (index 3) ─────────────────
+            // Contacts base hard-stop shoulder when lid reaches hard_stop_angle.
+            translate([knuckle_x(3), -stop_lug_h, 0])
+                cube([knuckle_w, stop_lug_h, stop_lug_w]);
+
         }
 
-        // ── Bore through the lid barrel (axis at Y=0, Z=0) ────────────────
-        translate([-1, 0, 0])
-            rotate([0, 90, 0])
-                cylinder(r=bore_r, h=base_w + 2, $fn=$fn);
-
         // ── Screen pocket (on inner face — Z = 0, cut toward Z = -screen_depth) ─
-        // Inner face is at Z=0; cut goes into the lid body (toward -Z).
         translate([bezel, bezel, -screen_depth])
             cube([screen_w, screen_h_val, screen_depth]);
     }
@@ -296,27 +298,6 @@ module trackpad_plate() {
 }
 
 // ============================================================================
-// HINGE PIN MODULE
-// Full-width pin with enlarged end caps to prevent axial escape.
-// The pin sits inside the bore with 0.2 mm radial clearance.
-// ============================================================================
-module hinge_pin() {
-    union() {
-        // Pin shaft
-        translate([0, 0, 0])
-            rotate([0, 90, 0])
-                cylinder(r=pin_r, h=base_w, $fn=$fn);
-
-        // End caps
-        for (x_cap = [0, base_w - pin_head_h]) {
-            translate([x_cap, 0, 0])
-                rotate([0, 90, 0])
-                    cylinder(r=pin_head_r, h=pin_head_h, $fn=$fn);
-        }
-    }
-}
-
-// ============================================================================
 // MAIN ASSEMBLY
 // ============================================================================
 //
@@ -344,7 +325,7 @@ module hinge_pin() {
 // ── Color export control ──────────────────────────────────────────────────────
 // RENDER_COLOR controls which color body is rendered/exported.
 //   "all"   — full model with color() wrappers (default; used for OpenSCAD GUI preview)
-//   "white" — only white parts (base, hinge pin, lid body); for per-color 3MF export
+//   "white" — only white parts (base, lid body with integrated pin); for per-color 3MF export
 //   "black" — only black parts (keycaps, trackpad plate, screen plate); for per-color export
 //
 // Usage:
@@ -353,7 +334,7 @@ module hinge_pin() {
 //   openscad --export-format 3mf -D 'RENDER_COLOR="black"' ... → black body only
 //
 // After exporting both bodies, run scripts/colorize_3mf.py to merge them into a
-// single Bambu-compatible multi-object 3MF with <m:basematerials> assignments.
+// single Bambu-compatible multi-object 3MF with <m:colorgroup> assignments.
 RENDER_COLOR = "all";   // "all" | "white" | "black"
 
 // Barrel/pin axis is at Y=base_d, Z=base_h (rear top edge of base)
@@ -368,16 +349,12 @@ rotate([0, 0, 90]) {
 
     // ── WHITE parts ─────────────────────────────────────────────────────
     if (RENDER_COLOR == "all" || RENDER_COLOR == "white") {
-        // Base body (without keycaps)
+        // Base body (without keycaps) — includes base-side barrel knuckles
         color("white")
             base();
 
-        // Hinge pin
-        color("white")
-            translate([0, hinge_y, hinge_z])
-                hinge_pin();
-
-        // Lid body (without screen plate)
+        // Lid body (without screen plate) — includes lid-side barrel knuckles
+        // and integrated pin shaft (print-in-place captive pin)
         color("white")
             translate([0, hinge_y, hinge_z])
                 rotate([(180 - hinge_angle), 0, 0])
