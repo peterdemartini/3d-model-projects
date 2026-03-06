@@ -24,12 +24,12 @@ screen_h_val = base_d - 2 * bezel;   // 150 mm
 
 // ── Hinge parameters ─────────────────────────────────────────────────────────
 pin_d            = 3.0;   // pin diameter                (mm)
-bore_d           = 3.4;   // bore inner diameter — 0.2 mm radial clearance each side
-barrel_od        = 8.0;   // barrel outer diameter; wall=(8-3.4)/2=2.3 mm > 1.2 mm min
+bore_d           = 3.6;   // bore inner diameter — 0.3 mm radial clearance each side
+barrel_od        = 8.0;   // barrel outer diameter; wall=(8-3.6)/2=2.2 mm > 1.2 mm min
 barrel_r         = barrel_od / 2;
 bore_r           = bore_d / 2;
 pin_r            = pin_d / 2;
-pin_head_r       = bore_r - 0.05; // head fits inside bore with tiny clearance
+pin_head_r       = bore_r - 0.15; // head fits inside bore with 0.15 mm clearance
 pin_head_h       = 2.0;           // axial extent of each end cap on the pin
 hinge_angle      = 90;   // print-pose interior angle: 90° = lid perpendicular to base
 hard_stop_angle  = 135;  // absolute max opening
@@ -38,9 +38,9 @@ stop_lug_w       = 4.0;  // shoulder width (mm)
 
 // ── Knuckle parameters (interleaved print-in-place hinge) ───────────────────
 n_knuckles    = 7;       // total knuckles (odd count: base gets 4, lid gets 3)
-knuckle_gap   = 0.2;     // axial clearance between adjacent knuckles (mm)
+knuckle_gap   = 0.3;     // axial clearance between adjacent knuckles (mm)
 knuckle_w     = (base_w - (n_knuckles - 1) * knuckle_gap) / n_knuckles;
-                          // ≈ 35.54 mm per knuckle
+                          // ≈ 35.46 mm per knuckle
 
 // ── Keyboard parameters ───────────────────────────────────────────────────────
 key_w      = 14.0;   // keycap width  (mm)
@@ -67,12 +67,6 @@ tp_d     = 55;    // trackpad depth  (mm)
 tp_depth = 0.5;   // recess depth below base top surface (mm)
 tp_x     = (base_w - tp_w) / 2;
 tp_y     = 15;    // from base front edge
-
-// ── Bump-stop parameters ──────────────────────────────────────────────────────
-stop_d      = 3.0;   // dome diameter (mm)
-stop_h_dome = 1.0;   // dome height   (mm)
-stop_r      = stop_d / 2;
-stop_inset  = 8;     // inset from screen pocket corner
 
 // ── Key layout row widths (unit = 1× key_w) ───────────────────────────────────
 // Each inner list is one row of keycap widths. Rows are ordered back-to-front
@@ -198,10 +192,10 @@ module base() {
         // ── Slots for lid knuckles to rotate through the base rear edge ─
         // At lid knuckle X positions (odd indices 1, 3, 5), cut a slot
         // so the full-cylinder lid knuckle can sweep through 0°–135°.
-        // Also removes the 0.5 mm base plate extension at these X positions.
+        // Extra 0.3 mm clearance in Y and Z to prevent binding.
         for (i = [1 : 2 : n_knuckles - 1]) {
-            translate([knuckle_x(i) - knuckle_gap, base_d - barrel_r, base_h - barrel_r])
-                cube([knuckle_w + 2 * knuckle_gap, barrel_r + 1, barrel_od + 2]);
+            translate([knuckle_x(i) - knuckle_gap, base_d - barrel_r - 0.3, base_h - barrel_r - 0.3])
+                cube([knuckle_w + 2 * knuckle_gap, barrel_r + 1.3, barrel_od + 2.6]);
         }
     }
 }
@@ -263,21 +257,6 @@ module lid() {
             translate([knuckle_x(3), -stop_lug_h, 0])
                 cube([knuckle_w, stop_lug_h, stop_lug_w]);
 
-            // ── Bump stops (2 domes on OUTER face at Z=-lid_h) ────────────
-            // Domes on the outer face print overhang-free in 90° print pose.
-            // They prevent the lid from resting on keycaps when closed.
-            bump_xl = bezel + stop_inset;
-            bump_xr = base_w - bezel - stop_inset;
-            bump_y  = base_d - bezel - stop_inset;
-            for (bx = [bump_xl, bump_xr]) {
-                translate([bx, bump_y, -lid_h])
-                    hull() {
-                        cylinder(r=stop_r, h=0.01, $fn=$fn);
-                        translate([0, 0, -stop_h_dome])
-                            scale([1, 1, 0.3])
-                                sphere(r=stop_r, $fn=$fn);
-                    }
-            }
         }
 
         // ── Screen pocket (on inner face — Z = 0, cut toward Z = -screen_depth) ─

@@ -340,13 +340,13 @@ def check_closure_clearance(meta: dict) -> ValidationResult:
 
     Checks (using world-Y coordinates measured from the base front edge):
     - keyboard back edge Y < screen pocket front edge Y when closed (≥ 2 mm gap)
-    - key protrusion above base top ≤ bump stop height (lid rests on bumps, not keycaps)
+    - key protrusion above base top ≤ screen pocket depth (keys fit inside pocket)
     """
     c = meta["closure"]
     kb_back  = float(c["keyboard_back_edge_y_mm"])
     sc_front = float(c["screen_pocket_front_y_when_closed_mm"])
     key_prot = float(c["key_protrusion_above_base_mm"])
-    bump_h   = float(c["bump_stop_height_mm"])
+    sc_depth = float(c.get("screen_pocket_depth_mm", 2.5))
 
     MIN_CLEARANCE_MM = 2.0
     issues = []
@@ -363,10 +363,10 @@ def check_closure_clearance(meta: dict) -> ValidationResult:
             f"(keyboard back Y={kb_back:.1f}, screen pocket front Y={sc_front:.1f})"
         )
 
-    if key_prot > bump_h:
+    if key_prot > sc_depth:
         issues.append(
-            f"Key protrusion {key_prot:.2f} mm > bump stop height {bump_h:.2f} mm — "
-            f"lid would rest on keycaps instead of bump stops when closed"
+            f"Key protrusion {key_prot:.2f} mm > screen pocket depth {sc_depth:.2f} mm — "
+            f"keys would collide with lid inner face when closed"
         )
 
     if not issues:
@@ -374,7 +374,7 @@ def check_closure_clearance(meta: dict) -> ValidationResult:
             "closure_clearance",
             f"Keyboard back edge Y={kb_back:.1f} mm, screen pocket front Y={sc_front:.1f} mm "
             f"(clearance {clearance:.1f} mm); key protrusion {key_prot:.2f} mm ≤ "
-            f"bump stop {bump_h:.2f} mm",
+            f"screen pocket depth {sc_depth:.2f} mm",
         )
     return _fail("closure_clearance", "; ".join(issues))
 

@@ -228,7 +228,7 @@ Then read the generated PNG image to verify all items in the checklist below.
 | V5 | Keyboard         | Grid of raised keycaps in recessed bed             | Keys visible as raised bumps; near-hinge position confirmed |
 | V6 | Trackpad         | Recessed rectangle centered in front of keyboard   | Visible as a flat inset; clearly separated from keyboard area |
 | V7 | Screen pocket    | Deep recess on inner (hinge-side) face of lid      | Recess is visible; bezel margin clearly present on all 4 sides |
-| V8 | Bump stops       | Two small domes on screen border (top corners)     | One dome at top-left, one at top-right of screen bezel |
+| V8 | ~~Bump stops~~   | **Removed in v002** — no domes on lid outer face   | Lid outer face should be smooth; no bumps visible |
 | V9 | Print pose       | ~110° open angle                                   | Base flat; lid angled upward at roughly 110° from base plane |
 | V10 | No islands      | All geometry connected                             | No floating or disconnected mesh islands visible |
 
@@ -260,11 +260,88 @@ using the parameter values in PLAN.md:
 
 | Check | Formula | Target | Pass Criteria |
 |-------|---------|--------|---------------|
-| Pin fits in bore | bore_d = pin_d + 2 × radial_clearance | 3.4 mm | bore_d ≥ pin_d + 0.4; bore_d ≤ pin_d + 0.6 |
-| Barrel min wall | wall = (barrel_od − bore_d) / 2 | ≥ 1.2 mm | (barrel_od − 3.4) / 2 ≥ 1.2 → barrel_od ≥ 5.8 mm |
+| Pin fits in bore | bore_d = pin_d + 2 × radial_clearance | 3.6 mm | bore_d ≥ pin_d + 0.4; bore_d ≤ pin_d + 0.8 → 3.6 ✅ |
+| Barrel min wall | wall = (barrel_od − bore_d) / 2 | ≥ 1.2 mm | (8.0 − 3.6) / 2 = 2.2 mm ≥ 1.2 ✅ |
 | Hard stop at 135° | Shoulder geometry blocks rotation | 135° max | Preview at `hinge_angle = 135`; lid should contact stop |
 | No interference at 0° (closed) | Stop lug clears at closed position | 0° free | Preview at `hinge_angle = 0`; no geometry collision |
 | Print gap at 110° | No geometry overlap at print pose | 110° free | Preview at `hinge_angle = 110`; pin/bore gap visible |
+
+---
+
+## Step 5: Closure Simulation (hinge_angle = 0°)
+
+Verify the laptop can **fully close** (lid flat against base) without any geometry
+collision. This was added in v002 after bump stops were removed.
+
+### 5a. Visual Verification
+
+Render at `hinge_angle=0` and inspect for overlapping geometry:
+
+```bash
+openscad -D 'hinge_angle=0' --render --imgsize 1200,900 \
+  -o models/toy_laptop/output/toy_laptop_001_closed.png \
+  models/toy_laptop/toy_laptop_001.scad
+```
+
+Inspect the resulting PNG. The lid should sit flat on the base with:
+- No barrel-on-barrel collision at the hinge
+- No keycap protrusion through the lid
+- Screen pocket facing down toward the keyboard
+
+### 5b. Mathematical Closure Analysis
+
+When `hinge_angle=0`, the lid folds down flat onto the base. Three clearances must
+be verified:
+
+| Clearance Check | Formula | Value | Pass? |
+|-----------------|---------|-------|-------|
+| **Key-to-pocket (Z)** | screen_pocket_depth − key_protrusion | 2.5 − 1.0 = **1.5 mm** | ✅ Keys fit inside screen pocket |
+| **Key-to-pocket (Y)** | screen_pocket_front_y − keyboard_back_edge_y | 165.0 − 161.0 = **4.0 mm** | ✅ Keys don't extend past pocket |
+| **Barrel collision** | Base and lid knuckles interleave (never overlap axially) | gap = 0.3 mm | ✅ No barrel overlap |
+| **Stop lug at 0°** | Lug is on base barrel; lid barrel rotates to 0° without contact | lug_h = 2.5 mm, only blocks > 135° | ✅ No lug collision at 0° |
+
+**Key-to-pocket (Z) detail:**
+- Keyboard bed is recessed 1.5 mm below base top surface
+- Keycap protrusion above base top = key_h − bed_depth = 2.5 − 1.5 = **1.0 mm**
+- Screen pocket depth = **2.5 mm** (cut into lid inner face)
+- Clearance when closed = 2.5 − 1.0 = **1.5 mm** → sufficient
+
+**Key-to-pocket (Y) detail:**
+- Keyboard back edge Y = kb_y0 − kb_bed_margin + bed_d_total = base_d − bezel = 180 − 15 = **165 mm**
+  - But the actual key back edge is at base_d − bezel = 165 mm (from SCAD: keyboard aligned to bezel)
+  - keyboard_back_edge_y_mm in meta.json = **161.0 mm** (last key row back edge)
+- Screen pocket starts at bezel = 15 mm from lid edge → when closed, the pocket front edge
+  maps to base Y = base_d − bezel = **165 mm**
+- Clearance = 165 − 161 = **4.0 mm** → sufficient
+
+### 5c. Angle Sweep — Lid Far-Edge Position
+
+The lid far edge (opposite the hinge) traces an arc as the hinge rotates.
+Verify no collision at any angle from 0° (closed) to 135° (max open).
+
+Hinge axis is at `(0, base_d, base_h)` = `(0, 180, 10)`.
+Lid depth = `base_d` = 180 mm. Lid far-edge position relative to hinge axis:
+
+```
+far_edge_y = base_d − lid_depth × cos(angle) = 180 − 180 × cos(θ)
+far_edge_z = base_h + lid_depth × sin(angle) = 10 + 180 × sin(θ)
+```
+
+| Angle (°) | far_edge_y (mm) | far_edge_z (mm) | Collision? |
+|-----------|-----------------|-----------------|------------|
+| 0 (closed)  | 0.0   | 10.0   | No — lid sits on base |
+| 15          | 13.3  | 56.6   | No |
+| 30          | 24.1  | 100.0  | No |
+| 45          | 52.7  | 137.3  | No |
+| 60          | 90.0  | 165.9  | No |
+| 75          | 133.4 | 183.9  | No |
+| 90          | 180.0 | 190.0  | No — lid perpendicular |
+| 105         | 226.6 | 183.9  | No |
+| 120         | 270.0 | 165.9  | No |
+| 135 (max)   | 307.3 | 137.3  | No — hard stop engaged |
+
+At all angles from 0° to 135°, the lid far edge stays within the H2D build volume
+(350 × 320 × 325 mm) and does not collide with the base body.
 
 ---
 
@@ -291,3 +368,34 @@ Update this section after each version is validated.
   - Assembly places pin at (0, base_d, base_h) hinge axis; lid rotated -90° (= -(180-90)°) around X
 - Next steps: Model is print-ready. Slice in BambuStudio for H2D. Enable 4-color AMS paint
   (body=slot1, keycap tops=slot2, screen bezel=slot3, screen surface=slot4).
+
+### v002 — Increased hinge tolerance, removed bump stops, added closure simulation
+- Date: 2026-03-04
+- Changes:
+  - **Hinge tolerance increase**: bore_d 3.4 → 3.6 mm (0.3 mm radial clearance); knuckle_gap 0.2 → 0.3 mm;
+    pin_head_r clearance 0.05 → 0.15 mm; slot cutouts +0.3 mm extra in Y and Z
+  - **Bump stops removed**: Deleted stop_d, stop_h_dome, stop_r, stop_inset parameters and hull/sphere dome
+    geometry from lid() module. Lid outer face is now smooth.
+  - **Closure validation updated**: validate.py check_closure_clearance() now checks screen_pocket_depth
+    instead of bump_stop_height. Keys (1.0 mm protrusion) fit inside screen pocket (2.5 mm depth) with
+    1.5 mm clearance.
+  - **Closure simulation added**: Step 5 documents visual verification at hinge_angle=0, mathematical
+    clearance analysis (Z: 1.5 mm, Y: 4.0 mm), and angle sweep from 0°–135° confirming no collision.
+  - **meta.json updated**: bore_d_mm=3.6, knuckle_gap_mm=0.3, removed bump_stop_height_mm,
+    added screen_pocket_depth_mm=2.5
+- Validation results:
+  - `file_exists`: PASS
+  - `supported_format`: PASS
+  - `loadable`: PASS
+  - `non_empty`: PASS — 4,108 faces / 2,160 vertices
+  - `watertight`: PASS — manifold
+  - `build_volume`: PASS — 188.0 × 250.0 × 190.0 mm (fits 350 × 320 × 325 mm)
+  - `positive_volume`: PASS — 745,755 mm³
+  - `no_degenerate_faces`: WARN — 6 degenerate faces (non-blocking)
+  - `wall_thickness`: WARN — skipped (rtree not installed; non-blocking)
+  - `expected_dimensions`: PASS — 188 × 250 × 190 mm (within ±5 mm of 189 × 250 × 190)
+  - `base_on_bed`: PASS — Z=0 base sits flat
+  - `hinge_parameters`: PASS — pin 3.0, bore 3.6, radial clearance 0.30, wall 2.20, stop 135°
+  - `closure_clearance`: PASS — Y clearance 4.0 mm, key protrusion 1.0 ≤ pocket depth 2.5
+  - `3mf_has_colors`: PASS — 2 color objects, 2 color groups, p:UUID present
+- Print readiness: **Yes** — all critical checks PASS, only non-blocking WARNs remain
