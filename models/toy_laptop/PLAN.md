@@ -182,6 +182,7 @@ Inherit defaults from AGENTS.md with the following overrides:
 | Version | Date       | Changes                                             |
 |---------|------------|-----------------------------------------------------|
 | 001     | 2026-03-01 | Full model generated: base (250×180×10mm) with keyboard (6-row ANSI, recessed bed, raised keycaps), trackpad recess, full-width captive hinge (3mm pin, 0.2mm radial clearance, 135° hard stop), lid (250×180×8mm) with screen pocket (220×150×2.5mm), bump stops, printed at 90° pose (lid perpendicular to base). All 9 validation checks PASS (250×184.5×187mm). |
+| 002     | 2026-03-07 | Hinge bore increased: bore_d 3.4→3.6mm (0.3mm radial clearance). Still fused during FDM printing — insufficient clearance for print-in-place. |
 | 003     | 2026-03-07 | Hinge tolerance increase: pin_d 3.0→4.0mm, bore_d 3.6→5.0mm (0.5mm radial clearance), barrel_od 8.0→12.0mm (3.5mm wall), knuckle_gap 0.3→0.5mm. Validator min radial clearance raised to 0.4mm, knuckle gap check added. Red-green-refactor pattern. |
 
 ---

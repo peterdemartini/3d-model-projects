@@ -365,7 +365,6 @@ def check_closure_clearance(meta: dict) -> ValidationResult:
     key_prot = float(c["key_protrusion_above_base_mm"])
     sc_depth = float(c.get("screen_pocket_depth_mm", 2.5))
 
-    MIN_CLEARANCE_MM = MIN_CLOSURE_CLEARANCE_MM
     issues = []
 
     clearance = sc_front - kb_back
@@ -374,9 +373,9 @@ def check_closure_clearance(meta: dict) -> ValidationResult:
             f"Keys (back edge Y={kb_back:.1f} mm) overlap screen pocket "
             f"(front edge Y={sc_front:.1f} mm when closed) — lid CANNOT close"
         )
-    elif clearance < MIN_CLEARANCE_MM:
+    elif clearance < MIN_CLOSURE_CLEARANCE_MM:
         issues.append(
-            f"Closure clearance {clearance:.1f} mm < {MIN_CLEARANCE_MM} mm minimum "
+            f"Closure clearance {clearance:.1f} mm < {MIN_CLOSURE_CLEARANCE_MM} mm minimum "
             f"(keyboard back Y={kb_back:.1f}, screen pocket front Y={sc_front:.1f})"
         )
 
