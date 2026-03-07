@@ -452,7 +452,7 @@ def load_meta(path: Path) -> dict | None:
     try:
         with meta_path.open() as f:
             return json.load(f)
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         return None
 
 

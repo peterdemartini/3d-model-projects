@@ -1,0 +1,76 @@
+name: Validate Models
+
+on:
+  pull_request:
+    paths:
+      - "models/**"
+      - "scripts/**"
+      - ".github/workflows/validate-models.yml"
+
+jobs:
+  build-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install OpenSCAD
+        run: sudo apt-get update && sudo apt-get install -y openscad xvfb
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Build and validate models
+        run: |
+          set -euo pipefail
+          FAILED=0
+
+          for scad in models/*/*.scad; do
+            [ -f "$scad" ] || continue
+            dir=$(dirname "$scad")
+            base=$(basename "$scad" .scad)
+            out="$dir/output"
+            mkdir -p "$out"
+
+            echo "::group::Building $scad"
+
+            # Export white body
+            echo "Exporting white body..."
+            xvfb-run -a openscad -D 'RENDER_COLOR="white"' \
+              -o "$out/${base}_white.3mf" "$scad" 2>&1
+
+            # Export black body
+            echo "Exporting black body..."
+            xvfb-run -a openscad -D 'RENDER_COLOR="black"' \
+              -o "$out/${base}_black.3mf" "$scad" 2>&1
+
+            # Merge multi-color
+            echo "Merging multi-color 3MF..."
+            python scripts/colorize_3mf.py \
+              --white "$out/${base}_white.3mf" \
+              --black "$out/${base}_black.3mf" \
+              --output "$out/${base}.3mf"
+
+            # Validate
+            echo "Validating merged 3MF..."
+            if ! python scripts/validate.py "$out/${base}.3mf"; then
+              FAILED=1
+            fi
+
+            echo "::endgroup::"
+          done
+
+          exit $FAILED
+
+      - name: Upload model artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-outputs
+          path: models/*/output/*.3mf
+          retention-days: 30
