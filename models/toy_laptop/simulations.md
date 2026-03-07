@@ -410,7 +410,7 @@ Update this section after each version is validated.
     pin_head_r = bore_r − 0.15 = 2.35 mm
   - **Validator updated**: minimum radial clearance raised from 0.1 to 0.4 mm;
     maximum radial clearance raised from 0.5 to 0.8 mm; knuckle gap minimum of 0.4 mm added
-  - **Unit tests added**: test_validate.py now has tests for check_hinge_parameters (8 tests)
+  - **Unit tests added**: test_validate.py now has tests for check_hinge_parameters (11 tests)
     and check_closure_clearance (3 tests) — previously untested
   - **Red-green-refactor pattern**: added to AGENTS.md as a workflow pattern
 - Expected validation results:
