@@ -216,7 +216,7 @@ python scripts/validate.py output/model.stl --skip-wall-thickness
 | 10 | `expected_dimensions`   | FAIL     | Bounding box matches `--expected-dims WxDxH` ±5 mm (optional flag) |
 | 11 | `base_on_bed`           | FAIL     | Geometry present at Z ≈ 0 — base sits flat on print bed |
 | 12 | `hinge_parameters`      | FAIL     | Pin/bore clearance 0.4–0.8 mm, knuckle gap ≥ 0.4 mm, barrel wall ≥ min, hard stop ≤ 135° (requires `.meta.json`) |
-| 13 | `closure_clearance`     | FAIL     | Key/screen clearance ≥ 2 mm, key protrusion ≤ bump stop height (requires `.meta.json`) |
+| 13 | `closure_clearance`     | FAIL     | Key/screen clearance ≥ 2 mm, key protrusion ≤ screen pocket depth (requires `.meta.json`) |
 | 14 | `3mf_has_colors`        | WARN     | 3MF contains ≥ 2 objects + `<m:basematerials>` for Bambu AMS multi-filament printing |
 
 Checks 10–11 apply to all models; checks 12–13 require a sidecar `{model}.meta.json` file

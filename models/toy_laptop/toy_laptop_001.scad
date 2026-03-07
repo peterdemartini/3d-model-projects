@@ -29,7 +29,7 @@ barrel_od        = 12.0;  // barrel outer diameter; wall=(12-5)/2=3.5 mm > 1.2 m
 barrel_r         = barrel_od / 2;
 bore_r           = bore_d / 2;
 pin_r            = pin_d / 2;
-pin_head_r       = bore_r - 0.15; // head fits inside bore with 0.15 mm clearance = 2.35 mm
+pin_head_r       = bore_r - 0.15; // head radius 2.35 mm → 0.15 mm radial clearance inside bore
 pin_head_h       = 2.0;           // axial extent of each end cap on the pin
 hinge_angle      = 90;   // print-pose interior angle: 90° = lid perpendicular to base
 hard_stop_angle  = 135;  // absolute max opening
