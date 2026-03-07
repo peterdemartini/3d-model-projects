@@ -215,7 +215,7 @@ python scripts/validate.py output/model.stl --skip-wall-thickness
 | 9  | `wall_thickness`        | WARN     | Minimum sampled wall ≥ 0.8 mm (advisory, ray-sampled) |
 | 10 | `expected_dimensions`   | FAIL     | Bounding box matches `--expected-dims WxDxH` ±5 mm (optional flag) |
 | 11 | `base_on_bed`           | FAIL     | Geometry present at Z ≈ 0 — base sits flat on print bed |
-| 12 | `hinge_parameters`      | FAIL     | Pin/bore clearance 0.1–0.5 mm, barrel wall ≥ min, hard stop ≤ 135° (requires `.meta.json`) |
+| 12 | `hinge_parameters`      | FAIL     | Pin/bore clearance 0.4–0.8 mm, knuckle gap ≥ 0.4 mm, barrel wall ≥ min, hard stop ≤ 135° (requires `.meta.json`) |
 | 13 | `closure_clearance`     | FAIL     | Key/screen clearance ≥ 2 mm, key protrusion ≤ bump stop height (requires `.meta.json`) |
 | 14 | `3mf_has_colors`        | WARN     | 3MF contains ≥ 2 objects + `<m:basematerials>` for Bambu AMS multi-filament printing |
 
@@ -322,6 +322,41 @@ mesh.export("output/model_fixed.stl")
                Right-click each object → Assign Filament → select AMS slot
 7. Export   →  Save .3mf project or send .gcode/.bgcode to printer
 ```
+
+---
+
+## Red-Green-Refactor Pattern
+
+When making tolerance or parameter changes with associated validation checks,
+follow red-green-refactor to ensure changes are properly tested:
+
+### RED (make tests fail)
+1. Update validation thresholds in `scripts/validate.py` to reject current values
+2. Add/update unit tests in `tests/test_validate.py` encoding new requirements
+3. Update `simulations.md` with expected outcomes for the new version
+4. Run `pytest` — tests pass (they assert the validator correctly rejects old values)
+5. Run `validate.py` against current model — it should FAIL
+6. Commit: `test: tighten <feature> validation thresholds (RED)`
+
+### GREEN (fix the model)
+1. Update the SCAD/Python model source with new parameter values
+2. Update the sidecar `.meta.json` to match new values
+3. Update `PLAN.md` with new dimensions and tolerances
+4. Re-export and validate — should PASS
+5. Commit: `feat: <description of change> (GREEN)`
+
+### REFACTOR (clean up)
+1. Extract magic numbers into named parameters
+2. Update derived geometry (slot cutouts, sweep volumes, etc.)
+3. Re-render preview images and verify visual quality
+4. Run full validation suite one final time
+5. Commit: `refactor: clean up <feature> parameters`
+
+### Rules
+- Each phase is a separate commit (enables git bisect if something breaks)
+- Never skip RED — it proves validation catches the problem
+- GREEN should be the minimal change to make validation pass
+- REFACTOR is for code quality only — no functional changes
 
 ---
 

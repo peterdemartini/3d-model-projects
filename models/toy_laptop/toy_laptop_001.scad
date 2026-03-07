@@ -39,6 +39,7 @@ stop_lug_w       = 4.0;  // shoulder width (mm)
 // ── Knuckle parameters (interleaved print-in-place hinge) ───────────────────
 n_knuckles    = 7;       // total knuckles (odd count: base gets 4, lid gets 3)
 knuckle_gap   = 0.5;     // axial clearance between adjacent knuckles (mm)
+slot_clearance = knuckle_gap; // radial clearance for lid-knuckle sweep slots
 knuckle_w     = (base_w - (n_knuckles - 1) * knuckle_gap) / n_knuckles;
                           // ≈ 35.29 mm per knuckle
 
@@ -192,10 +193,10 @@ module base() {
         // ── Slots for lid knuckles to rotate through the base rear edge ─
         // At lid knuckle X positions (odd indices 1, 3, 5), cut a slot
         // so the full-cylinder lid knuckle can sweep through 0°–135°.
-        // Extra 0.5 mm clearance in Y and Z to prevent binding.
+        // Extra slot_clearance in Y and Z to prevent binding.
         for (i = [1 : 2 : n_knuckles - 1]) {
-            translate([knuckle_x(i) - knuckle_gap, base_d - barrel_r - 0.5, base_h - barrel_r - 0.5])
-                cube([knuckle_w + 2 * knuckle_gap, barrel_r + 1.5, barrel_od + 3.0]);
+            translate([knuckle_x(i) - knuckle_gap, base_d - barrel_r - slot_clearance, base_h - barrel_r - slot_clearance])
+                cube([knuckle_w + 2 * knuckle_gap, barrel_r + slot_clearance + 1.0, barrel_od + 2 * slot_clearance + 2.0]);
         }
     }
 }
