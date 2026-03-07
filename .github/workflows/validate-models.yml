@@ -39,27 +39,44 @@ jobs:
 
             echo "::group::Building $scad"
 
-            # Export white body
-            echo "Exporting white body..."
-            xvfb-run -a openscad -D 'RENDER_COLOR="white"' \
-              -o "$out/${base}_white.3mf" "$scad" 2>&1
+            # Detect multi-color vs single-color model
+            if grep -q 'RENDER_COLOR' "$scad"; then
+              echo "Multi-color model detected"
 
-            # Export black body
-            echo "Exporting black body..."
-            xvfb-run -a openscad -D 'RENDER_COLOR="black"' \
-              -o "$out/${base}_black.3mf" "$scad" 2>&1
+              # Export white body
+              echo "Exporting white body..."
+              xvfb-run -a openscad -D 'RENDER_COLOR="white"' \
+                -o "$out/${base}_white.3mf" "$scad" 2>&1
 
-            # Merge multi-color
-            echo "Merging multi-color 3MF..."
-            python scripts/colorize_3mf.py \
-              --white "$out/${base}_white.3mf" \
-              --black "$out/${base}_black.3mf" \
-              --output "$out/${base}.3mf"
+              # Export black body
+              echo "Exporting black body..."
+              xvfb-run -a openscad -D 'RENDER_COLOR="black"' \
+                -o "$out/${base}_black.3mf" "$scad" 2>&1
 
-            # Validate
-            echo "Validating merged 3MF..."
-            if ! python scripts/validate.py "$out/${base}.3mf"; then
-              FAILED=1
+              # Merge multi-color
+              echo "Merging multi-color 3MF..."
+              python scripts/colorize_3mf.py \
+                --white "$out/${base}_white.3mf" \
+                --black "$out/${base}_black.3mf" \
+                --output "$out/${base}.3mf"
+
+              # Validate merged 3MF
+              echo "Validating merged 3MF..."
+              if ! python scripts/validate.py "$out/${base}.3mf"; then
+                FAILED=1
+              fi
+            else
+              echo "Single-color model detected"
+
+              # Export STL directly
+              echo "Exporting STL..."
+              xvfb-run -a openscad -o "$out/${base}.stl" "$scad" 2>&1
+
+              # Validate STL
+              echo "Validating STL..."
+              if ! python scripts/validate.py "$out/${base}.stl"; then
+                FAILED=1
+              fi
             fi
 
             echo "::endgroup::"
@@ -72,5 +89,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: model-outputs
-          path: models/*/output/*.3mf
+          path: |
+            models/*/output/*.3mf
+            models/*/output/*.stl
           retention-days: 30
