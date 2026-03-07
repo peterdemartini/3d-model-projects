@@ -53,17 +53,19 @@ color-change access to the screen pocket and requires no supports on the H2D.
 | Style                 | Full-width barrel (spans 250 mm)|
 | Print pose            | 90° open (lid perpendicular to base) |
 | Hard stop             | 135° (cannot open further)      |
-| Pin diameter          | 3.0 mm                          |
-| Bore inner diameter   | 3.4 mm                          |
-| Bore radial clearance | 0.2 mm per side                 |
-| Total bore clearance  | 0.4 mm                          |
+| Pin diameter          | 4.0 mm                          |
+| Bore inner diameter   | 5.0 mm                          |
+| Bore radial clearance | 0.5 mm per side                 |
+| Total bore clearance  | 1.0 mm                          |
+| Barrel outer diameter | 12.0 mm                         |
+| Barrel wall thickness | 3.5 mm                          |
+| Knuckle gap (axial)   | 0.5 mm                          |
 | Hinge axis            | Full X width (250 mm)           |
 | Min barrel wall       | ≥ 1.2 mm (structural minimum)   |
 
 The hinge is a single continuous barrel spanning the full X width. The pin is
-a captive feature printed in-place inside the barrel. The 0.2 mm radial
-clearance matches the "slip fit" spec from AGENTS.md. This should free with
-gentle flexing after printing.
+a captive feature printed in-place inside the barrel. The 0.5 mm radial
+clearance provides reliable print-in-place FDM operation without fusing.
 
 The 135° hard stop is implemented as a geometric shoulder on the base-side
 barrel collar that contacts a lug on the lid when fully open. The stop geometry
@@ -169,9 +171,9 @@ Inherit defaults from AGENTS.md with the following overrides:
 
 | Feature                | Clearance     | Fit type                       |
 |------------------------|---------------|--------------------------------|
-| Hinge pin / bore       | 0.2 mm radial | Slip fit (AGENTS.md spec)      |
+| Hinge pin / bore       | 0.5 mm radial | Loose fit (FDM print-in-place) |
+| Hinge knuckle gap      | 0.5 mm axial  | Loose fit (FDM print-in-place) |
 | Keycap ledge to bed    | 0.1 mm        | Press fit (solid, no movement) |
-| Bump stop height       | 1.0 mm        | Clearance gap when open        |
 
 ---
 
@@ -180,6 +182,7 @@ Inherit defaults from AGENTS.md with the following overrides:
 | Version | Date       | Changes                                             |
 |---------|------------|-----------------------------------------------------|
 | 001     | 2026-03-01 | Full model generated: base (250×180×10mm) with keyboard (6-row ANSI, recessed bed, raised keycaps), trackpad recess, full-width captive hinge (3mm pin, 0.2mm radial clearance, 135° hard stop), lid (250×180×8mm) with screen pocket (220×150×2.5mm), bump stops, printed at 90° pose (lid perpendicular to base). All 9 validation checks PASS (250×184.5×187mm). |
+| 003     | 2026-03-07 | Hinge tolerance increase: pin_d 3.0→4.0mm, bore_d 3.6→5.0mm (0.5mm radial clearance), barrel_od 8.0→12.0mm (3.5mm wall), knuckle_gap 0.3→0.5mm. Validator min radial clearance raised to 0.4mm, knuckle gap check added. Red-green-refactor pattern. |
 
 ---
 
@@ -187,8 +190,8 @@ Inherit defaults from AGENTS.md with the following overrides:
 
 - `watertight` achieved PASS on v001 by using a full-cylinder barrel (not a
   half-cylinder) for the hinge, avoiding T-junction non-manifold edges. The
-  pin is captive inside the bore with 0.2mm radial clearance — some manual
-  flexing after printing may be needed to free it.
+  pin is captive inside the bore with 0.5mm radial clearance for reliable
+  FDM print-in-place operation.
 - `wall_thickness` PASS on v001 (min 5.49mm, mean 19.54mm) — keycap geometry
   uses `linear_extrude` with scale taper, which produces thicker walls than
   the `hull()` approach in the original design.
