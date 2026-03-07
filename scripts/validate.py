@@ -294,9 +294,10 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
 
     Checks:
     - bore_d > pin_d (pin fits in bore)
-    - radial clearance (bore_d - pin_d)/2 in [0.1, 0.5] mm
+    - radial clearance (bore_d - pin_d)/2 in [0.4, 0.8] mm
     - barrel wall (barrel_od - bore_d)/2 ≥ min_wall_mm
     - hard_stop_angle ≤ 135°
+    - knuckle_gap ≥ 0.4 mm (axial clearance for FDM print-in-place)
     """
     h = meta["hinge"]
     pin_d      = float(h["pin_d_mm"])
@@ -307,13 +308,14 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
 
     radial_clearance = (bore_d - pin_d) / 2
     barrel_wall      = (barrel_od - bore_d) / 2
+    knuckle_gap      = float(h.get("knuckle_gap_mm", 0))
 
     issues = []
     if bore_d <= pin_d:
         issues.append(f"bore_d ({bore_d}) ≤ pin_d ({pin_d}): pin cannot fit in bore")
-    if not (0.1 <= radial_clearance <= 0.5):
+    if not (0.4 <= radial_clearance <= 0.8):
         issues.append(
-            f"radial clearance {radial_clearance:.2f} mm outside [0.10, 0.50] mm "
+            f"radial clearance {radial_clearance:.2f} mm outside [0.40, 0.80] mm "
             f"(too tight → fused; too loose → sloppy)"
         )
     if barrel_wall < min_wall:
@@ -323,13 +325,18 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
         )
     if hard_stop > 135:
         issues.append(f"hard_stop_angle {hard_stop}° > 135° physical maximum")
+    if knuckle_gap < 0.4:
+        issues.append(
+            f"knuckle_gap {knuckle_gap:.2f} mm < 0.40 mm minimum "
+            f"(axial clearance too tight for FDM print-in-place)"
+        )
 
     if not issues:
         return _pass(
             "hinge_parameters",
             f"Pin {pin_d} mm ∅, bore {bore_d} mm ∅, radial clearance "
             f"{radial_clearance:.2f} mm, barrel wall {barrel_wall:.2f} mm, "
-            f"hard stop {hard_stop:.0f}°",
+            f"knuckle gap {knuckle_gap:.2f} mm, hard stop {hard_stop:.0f}°",
         )
     return _fail("hinge_parameters", "; ".join(issues))
 

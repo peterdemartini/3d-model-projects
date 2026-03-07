@@ -11,7 +11,9 @@ from validate import (
     BUILD_VOLUME_MM,
     ValidationResult,
     check_build_volume,
+    check_closure_clearance,
     check_file_exists,
+    check_hinge_parameters,
     check_no_degenerate_faces,
     check_non_empty,
     check_positive_volume,
@@ -230,3 +232,137 @@ def test_validate_oversized_stl(tmp_path):
     results = validate_file(path, skip_wall_thickness=True)
     statuses_by_check = {r.check: r.status for r in results}
     assert statuses_by_check["build_volume"] == ValidationResult.FAIL
+
+
+# ── check_hinge_parameters ──────────────────────────────────────────────────
+
+def _make_hinge_meta(
+    pin_d=4.0,
+    bore_d=5.0,
+    barrel_od=12.0,
+    hard_stop=135,
+    min_wall=1.2,
+    n_knuckles=7,
+    knuckle_gap=0.5,
+):
+    """Return a meta dict with hinge section for testing."""
+    return {
+        "hinge": {
+            "pin_d_mm": pin_d,
+            "bore_d_mm": bore_d,
+            "barrel_od_mm": barrel_od,
+            "hard_stop_angle_deg": hard_stop,
+            "min_wall_mm": min_wall,
+            "type": "interleaved_knuckle",
+            "n_knuckles": n_knuckles,
+            "knuckle_gap_mm": knuckle_gap,
+        }
+    }
+
+
+def test_hinge_parameters_pass():
+    """Hinge with 0.5 mm radial clearance and 0.5 mm knuckle gap passes."""
+    meta = _make_hinge_meta(pin_d=4.0, bore_d=5.0, barrel_od=12.0, knuckle_gap=0.5)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.PASS
+
+
+def test_hinge_parameters_fail_radial_clearance_too_tight():
+    """Radial clearance below 0.4 mm must fail (old v002 values)."""
+    # bore_d=3.6, pin_d=3.0 => clearance = 0.3 mm < 0.4
+    meta = _make_hinge_meta(pin_d=3.0, bore_d=3.6, barrel_od=8.0, knuckle_gap=0.5)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.FAIL
+    assert "radial clearance" in result.message
+
+
+def test_hinge_parameters_fail_radial_clearance_too_loose():
+    """Radial clearance above 0.8 mm must fail."""
+    # bore_d=5.0, pin_d=3.0 => clearance = 1.0 mm > 0.8
+    meta = _make_hinge_meta(pin_d=3.0, bore_d=5.0, knuckle_gap=0.5)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.FAIL
+    assert "radial clearance" in result.message
+
+
+def test_hinge_parameters_fail_bore_le_pin():
+    """bore_d <= pin_d must fail."""
+    meta = _make_hinge_meta(pin_d=5.0, bore_d=5.0)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.FAIL
+    assert "bore_d" in result.message
+
+
+def test_hinge_parameters_fail_barrel_wall_too_thin():
+    """Barrel wall below min_wall must fail."""
+    # barrel_od=5.5, bore_d=5.0 => wall = 0.25 mm < 1.2
+    meta = _make_hinge_meta(bore_d=5.0, barrel_od=5.5, knuckle_gap=0.5)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.FAIL
+    assert "barrel wall" in result.message
+
+
+def test_hinge_parameters_fail_hard_stop_too_large():
+    """hard_stop > 135 must fail."""
+    meta = _make_hinge_meta(hard_stop=140)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.FAIL
+    assert "hard_stop" in result.message
+
+
+def test_hinge_parameters_fail_knuckle_gap_too_small():
+    """Knuckle gap below 0.4 mm must fail (old v002 value)."""
+    meta = _make_hinge_meta(knuckle_gap=0.3)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.FAIL
+    assert "knuckle_gap" in result.message
+
+
+def test_hinge_parameters_boundary_radial_clearance():
+    """Radial clearance just above 0.4 mm should pass."""
+    # pin=4.0, bore=4.82 => clearance = 0.41
+    meta = _make_hinge_meta(pin_d=4.0, bore_d=4.82, knuckle_gap=0.5)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.PASS
+
+
+# ── check_closure_clearance ──────────────────────────────────────────────────
+
+def _make_closure_meta(
+    keyboard_back_edge_y=161.0,
+    screen_pocket_front_y=165.0,
+    key_protrusion=1.0,
+    screen_pocket_depth=2.5,
+):
+    """Return a meta dict with closure section for testing."""
+    return {
+        "closure": {
+            "base_d_mm": 180,
+            "bezel_mm": 15,
+            "key_protrusion_above_base_mm": key_protrusion,
+            "screen_pocket_depth_mm": screen_pocket_depth,
+            "keyboard_back_edge_y_mm": keyboard_back_edge_y,
+            "screen_pocket_front_y_when_closed_mm": screen_pocket_front_y,
+        }
+    }
+
+
+def test_closure_clearance_pass():
+    """Default closure values (4mm gap, key 1mm < pocket 2.5mm) pass."""
+    meta = _make_closure_meta()
+    result = check_closure_clearance(meta)
+    assert result.status == ValidationResult.PASS
+
+
+def test_closure_clearance_fail_overlap():
+    """Keys extending past screen pocket front edge must fail."""
+    meta = _make_closure_meta(keyboard_back_edge_y=170.0, screen_pocket_front_y=165.0)
+    result = check_closure_clearance(meta)
+    assert result.status == ValidationResult.FAIL
+
+
+def test_closure_clearance_fail_key_protrusion():
+    """Key protrusion exceeding screen pocket depth must fail."""
+    meta = _make_closure_meta(key_protrusion=3.0, screen_pocket_depth=2.5)
+    result = check_closure_clearance(meta)
+    assert result.status == ValidationResult.FAIL
