@@ -260,11 +260,13 @@ using the parameter values in PLAN.md:
 
 | Check | Formula | Target | Pass Criteria |
 |-------|---------|--------|---------------|
-| Pin fits in bore | bore_d = pin_d + 2 × radial_clearance | 3.6 mm | bore_d ≥ pin_d + 0.4; bore_d ≤ pin_d + 0.8 → 3.6 ✅ |
-| Barrel min wall | wall = (barrel_od − bore_d) / 2 | ≥ 1.2 mm | (8.0 − 3.6) / 2 = 2.2 mm ≥ 1.2 ✅ |
+| Pin fits in bore | bore_d = pin_d + 2 × radial_clearance | 5.0 mm | bore_d ≥ pin_d + 0.8; bore_d ≤ pin_d + 1.6 → 5.0 ✅ |
+| Radial clearance | (bore_d − pin_d) / 2 | 0.4–0.8 mm | (5.0 − 4.0) / 2 = 0.5 mm ∈ [0.4, 0.8] ✅ |
+| Barrel min wall | wall = (barrel_od − bore_d) / 2 | ≥ 1.2 mm | (12.0 − 5.0) / 2 = 3.5 mm ≥ 1.2 ✅ |
+| Knuckle gap | axial clearance between knuckles | ≥ 0.4 mm | 0.5 mm ≥ 0.4 ✅ |
 | Hard stop at 135° | Shoulder geometry blocks rotation | 135° max | Preview at `hinge_angle = 135`; lid should contact stop |
 | No interference at 0° (closed) | Stop lug clears at closed position | 0° free | Preview at `hinge_angle = 0`; no geometry collision |
-| Print gap at 110° | No geometry overlap at print pose | 110° free | Preview at `hinge_angle = 110`; pin/bore gap visible |
+| Print gap at 90° | No geometry overlap at print pose | 90° free | Preview at `hinge_angle = 90`; pin/bore gap visible |
 
 ---
 
@@ -399,3 +401,19 @@ Update this section after each version is validated.
   - `closure_clearance`: PASS — Y clearance 4.0 mm, key protrusion 1.0 ≤ pocket depth 2.5
   - `3mf_has_colors`: PASS — 2 color objects, 2 color groups, p:UUID present
 - Print readiness: **Yes** — all critical checks PASS, only non-blocking WARNs remain
+
+### v003 — Hinge size increase for reliable FDM print-in-place (red-green-refactor)
+- Date: 2026-03-07
+- Changes:
+  - **Hinge size increase**: pin_d 3.0 → 4.0 mm; bore_d 3.6 → 5.0 mm (0.5 mm radial clearance);
+    barrel_od 8.0 → 12.0 mm (3.5 mm barrel wall); knuckle_gap 0.3 → 0.5 mm;
+    pin_head_r = bore_r − 0.15 = 2.35 mm
+  - **Validator updated**: minimum radial clearance raised from 0.1 to 0.4 mm;
+    maximum radial clearance raised from 0.5 to 0.8 mm; knuckle gap minimum of 0.4 mm added
+  - **Unit tests added**: test_validate.py now has tests for check_hinge_parameters (11 tests)
+    and check_closure_clearance (4 tests) — previously untested
+  - **Red-green-refactor pattern**: added to AGENTS.md as a workflow pattern
+- Expected validation results:
+  - `hinge_parameters`: PASS — pin 4.0, bore 5.0, radial clearance 0.50 mm,
+    barrel wall 3.50 mm, knuckle gap 0.50 mm, hard stop 135°
+  - All other checks: same as v002 (PASS or non-blocking WARN)

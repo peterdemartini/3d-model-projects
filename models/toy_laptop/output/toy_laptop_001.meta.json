@@ -1,14 +1,14 @@
 {
   "_comment": "Sidecar metadata for validate.py checks #12 (hinge_parameters) and #13 (closure_clearance).",
   "hinge": {
-    "pin_d_mm": 3.0,
-    "bore_d_mm": 3.6,
-    "barrel_od_mm": 8.0,
+    "pin_d_mm": 4.0,
+    "bore_d_mm": 5.0,
+    "barrel_od_mm": 12.0,
     "hard_stop_angle_deg": 135,
     "min_wall_mm": 1.2,
     "type": "interleaved_knuckle",
     "n_knuckles": 7,
-    "knuckle_gap_mm": 0.3
+    "knuckle_gap_mm": 0.5
   },
   "closure": {
     "base_d_mm": 180,

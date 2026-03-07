@@ -24,6 +24,15 @@ SUPPORTED_EXTENSIONS = {".stl", ".3mf", ".obj", ".step", ".stp"}
 # Minimum wall thickness (mm) – 2 × 0.4 mm nozzle diameter
 MIN_WALL_THICKNESS_MM = 0.8
 
+# ── Hinge validation thresholds ──────────────────────────────────────────────
+RADIAL_CLEARANCE_MIN_MM = 0.4
+RADIAL_CLEARANCE_MAX_MM = 0.8
+KNUCKLE_GAP_MIN_MM = 0.4
+HARD_STOP_MAX_DEG = 135
+
+# ── Closure validation thresholds ────────────────────────────────────────────
+MIN_CLOSURE_CLEARANCE_MM = 2.0
+
 
 # ── Result helpers ────────────────────────────────────────────────────────────
 
@@ -294,9 +303,10 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
 
     Checks:
     - bore_d > pin_d (pin fits in bore)
-    - radial clearance (bore_d - pin_d)/2 in [0.1, 0.5] mm
+    - radial clearance (bore_d - pin_d)/2 in [RADIAL_CLEARANCE_MIN_MM, RADIAL_CLEARANCE_MAX_MM]
     - barrel wall (barrel_od - bore_d)/2 ≥ min_wall_mm
-    - hard_stop_angle ≤ 135°
+    - hard_stop_angle ≤ HARD_STOP_MAX_DEG
+    - knuckle_gap ≥ KNUCKLE_GAP_MIN_MM (axial clearance for FDM print-in-place)
     """
     h = meta["hinge"]
     pin_d      = float(h["pin_d_mm"])
@@ -307,13 +317,15 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
 
     radial_clearance = (bore_d - pin_d) / 2
     barrel_wall      = (barrel_od - bore_d) / 2
+    knuckle_gap      = float(h.get("knuckle_gap_mm", 0))
 
     issues = []
     if bore_d <= pin_d:
         issues.append(f"bore_d ({bore_d}) ≤ pin_d ({pin_d}): pin cannot fit in bore")
-    if not (0.1 <= radial_clearance <= 0.5):
+    if not (RADIAL_CLEARANCE_MIN_MM <= radial_clearance <= RADIAL_CLEARANCE_MAX_MM):
         issues.append(
-            f"radial clearance {radial_clearance:.2f} mm outside [0.10, 0.50] mm "
+            f"radial clearance {radial_clearance:.2f} mm outside "
+            f"[{RADIAL_CLEARANCE_MIN_MM:.2f}, {RADIAL_CLEARANCE_MAX_MM:.2f}] mm "
             f"(too tight → fused; too loose → sloppy)"
         )
     if barrel_wall < min_wall:
@@ -321,15 +333,20 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
             f"barrel wall {barrel_wall:.2f} mm < minimum {min_wall} mm "
             f"(risk of fracture during deflashing)"
         )
-    if hard_stop > 135:
-        issues.append(f"hard_stop_angle {hard_stop}° > 135° physical maximum")
+    if hard_stop > HARD_STOP_MAX_DEG:
+        issues.append(f"hard_stop_angle {hard_stop}° > {HARD_STOP_MAX_DEG}° physical maximum")
+    if knuckle_gap < KNUCKLE_GAP_MIN_MM:
+        issues.append(
+            f"knuckle_gap {knuckle_gap:.2f} mm < {KNUCKLE_GAP_MIN_MM:.2f} mm minimum "
+            f"(axial clearance too tight for FDM print-in-place)"
+        )
 
     if not issues:
         return _pass(
             "hinge_parameters",
             f"Pin {pin_d} mm ∅, bore {bore_d} mm ∅, radial clearance "
             f"{radial_clearance:.2f} mm, barrel wall {barrel_wall:.2f} mm, "
-            f"hard stop {hard_stop:.0f}°",
+            f"knuckle gap {knuckle_gap:.2f} mm, hard stop {hard_stop:.0f}°",
         )
     return _fail("hinge_parameters", "; ".join(issues))
 
@@ -348,7 +365,6 @@ def check_closure_clearance(meta: dict) -> ValidationResult:
     key_prot = float(c["key_protrusion_above_base_mm"])
     sc_depth = float(c.get("screen_pocket_depth_mm", 2.5))
 
-    MIN_CLEARANCE_MM = 2.0
     issues = []
 
     clearance = sc_front - kb_back
@@ -357,9 +373,9 @@ def check_closure_clearance(meta: dict) -> ValidationResult:
             f"Keys (back edge Y={kb_back:.1f} mm) overlap screen pocket "
             f"(front edge Y={sc_front:.1f} mm when closed) — lid CANNOT close"
         )
-    elif clearance < MIN_CLEARANCE_MM:
+    elif clearance < MIN_CLOSURE_CLEARANCE_MM:
         issues.append(
-            f"Closure clearance {clearance:.1f} mm < {MIN_CLEARANCE_MM} mm minimum "
+            f"Closure clearance {clearance:.1f} mm < {MIN_CLOSURE_CLEARANCE_MM} mm minimum "
             f"(keyboard back Y={kb_back:.1f}, screen pocket front Y={sc_front:.1f})"
         )
 
