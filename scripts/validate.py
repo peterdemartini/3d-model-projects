@@ -24,6 +24,15 @@ SUPPORTED_EXTENSIONS = {".stl", ".3mf", ".obj", ".step", ".stp"}
 # Minimum wall thickness (mm) – 2 × 0.4 mm nozzle diameter
 MIN_WALL_THICKNESS_MM = 0.8
 
+# ── Hinge validation thresholds ──────────────────────────────────────────────
+RADIAL_CLEARANCE_MIN_MM = 0.4
+RADIAL_CLEARANCE_MAX_MM = 0.8
+KNUCKLE_GAP_MIN_MM = 0.4
+HARD_STOP_MAX_DEG = 135
+
+# ── Closure validation thresholds ────────────────────────────────────────────
+MIN_CLOSURE_CLEARANCE_MM = 2.0
+
 
 # ── Result helpers ────────────────────────────────────────────────────────────
 
@@ -294,10 +303,10 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
 
     Checks:
     - bore_d > pin_d (pin fits in bore)
-    - radial clearance (bore_d - pin_d)/2 in [0.4, 0.8] mm
+    - radial clearance (bore_d - pin_d)/2 in [RADIAL_CLEARANCE_MIN_MM, RADIAL_CLEARANCE_MAX_MM]
     - barrel wall (barrel_od - bore_d)/2 ≥ min_wall_mm
-    - hard_stop_angle ≤ 135°
-    - knuckle_gap ≥ 0.4 mm (axial clearance for FDM print-in-place)
+    - hard_stop_angle ≤ HARD_STOP_MAX_DEG
+    - knuckle_gap ≥ KNUCKLE_GAP_MIN_MM (axial clearance for FDM print-in-place)
     """
     h = meta["hinge"]
     pin_d      = float(h["pin_d_mm"])
@@ -313,9 +322,10 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
     issues = []
     if bore_d <= pin_d:
         issues.append(f"bore_d ({bore_d}) ≤ pin_d ({pin_d}): pin cannot fit in bore")
-    if not (0.4 <= radial_clearance <= 0.8):
+    if not (RADIAL_CLEARANCE_MIN_MM <= radial_clearance <= RADIAL_CLEARANCE_MAX_MM):
         issues.append(
-            f"radial clearance {radial_clearance:.2f} mm outside [0.40, 0.80] mm "
+            f"radial clearance {radial_clearance:.2f} mm outside "
+            f"[{RADIAL_CLEARANCE_MIN_MM:.2f}, {RADIAL_CLEARANCE_MAX_MM:.2f}] mm "
             f"(too tight → fused; too loose → sloppy)"
         )
     if barrel_wall < min_wall:
@@ -323,11 +333,11 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
             f"barrel wall {barrel_wall:.2f} mm < minimum {min_wall} mm "
             f"(risk of fracture during deflashing)"
         )
-    if hard_stop > 135:
-        issues.append(f"hard_stop_angle {hard_stop}° > 135° physical maximum")
-    if knuckle_gap < 0.4:
+    if hard_stop > HARD_STOP_MAX_DEG:
+        issues.append(f"hard_stop_angle {hard_stop}° > {HARD_STOP_MAX_DEG}° physical maximum")
+    if knuckle_gap < KNUCKLE_GAP_MIN_MM:
         issues.append(
-            f"knuckle_gap {knuckle_gap:.2f} mm < 0.40 mm minimum "
+            f"knuckle_gap {knuckle_gap:.2f} mm < {KNUCKLE_GAP_MIN_MM:.2f} mm minimum "
             f"(axial clearance too tight for FDM print-in-place)"
         )
 
@@ -355,7 +365,7 @@ def check_closure_clearance(meta: dict) -> ValidationResult:
     key_prot = float(c["key_protrusion_above_base_mm"])
     sc_depth = float(c.get("screen_pocket_depth_mm", 2.5))
 
-    MIN_CLEARANCE_MM = 2.0
+    MIN_CLEARANCE_MM = MIN_CLOSURE_CLEARANCE_MM
     issues = []
 
     clearance = sc_front - kb_back

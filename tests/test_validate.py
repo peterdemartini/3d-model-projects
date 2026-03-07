@@ -318,6 +318,13 @@ def test_hinge_parameters_fail_knuckle_gap_too_small():
     assert "knuckle_gap" in result.message
 
 
+def test_hinge_parameters_boundary_knuckle_gap():
+    """Knuckle gap at exactly 0.4 mm (boundary) should pass."""
+    meta = _make_hinge_meta(knuckle_gap=0.4)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.PASS
+
+
 def test_hinge_parameters_boundary_radial_clearance():
     """Radial clearance just above 0.4 mm should pass."""
     # pin=4.0, bore=4.82 => clearance = 0.41
