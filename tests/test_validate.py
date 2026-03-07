@@ -2,8 +2,6 @@
 tests/test_validate.py — Unit tests for scripts/validate.py
 """
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 import trimesh
@@ -209,6 +207,8 @@ def test_collect_files_empty_directory(tmp_path):
 def test_validate_good_stl(tmp_path):
     """A watertight box within build volume should produce no FAIL results."""
     mesh = make_box_mesh(size=(50, 50, 50))
+    # Translate so base sits at Z=0 (trimesh boxes are centered at origin)
+    mesh.apply_translation([0, 0, 25])
     path = tmp_path / "good.stl"
     mesh.export(str(path))
     results = validate_file(path, skip_wall_thickness=True)
