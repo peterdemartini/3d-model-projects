@@ -326,6 +326,22 @@ def test_hinge_parameters_boundary_radial_clearance():
     assert result.status == ValidationResult.PASS
 
 
+def test_hinge_parameters_boundary_radial_clearance_upper_limit():
+    """Radial clearance at the upper limit 0.80 mm should pass."""
+    # pin=4.0, bore=5.6 => clearance = (5.6 - 4.0) / 2 = 0.80
+    meta = _make_hinge_meta(pin_d=4.0, bore_d=5.6, knuckle_gap=0.5)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.PASS
+
+
+def test_hinge_parameters_fail_radial_clearance_just_over_upper():
+    """Radial clearance just above 0.80 mm should fail."""
+    # pin=4.0, bore=5.62 => clearance = (5.62 - 4.0) / 2 = 0.81
+    meta = _make_hinge_meta(pin_d=4.0, bore_d=5.62, knuckle_gap=0.5)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.FAIL
+
+
 # ── check_closure_clearance ──────────────────────────────────────────────────
 
 def _make_closure_meta(
@@ -366,3 +382,12 @@ def test_closure_clearance_fail_key_protrusion():
     meta = _make_closure_meta(key_protrusion=3.0, screen_pocket_depth=2.5)
     result = check_closure_clearance(meta)
     assert result.status == ValidationResult.FAIL
+
+
+def test_closure_clearance_fail_too_tight():
+    """Clearance between 0 and 2.0 mm must fail (too tight)."""
+    # 165.0 - 164.0 = 1.0 mm clearance, below MIN_CLEARANCE_MM=2.0
+    meta = _make_closure_meta(keyboard_back_edge_y=164.0, screen_pocket_front_y=165.0)
+    result = check_closure_clearance(meta)
+    assert result.status == ValidationResult.FAIL
+    assert "clearance" in result.message.lower()

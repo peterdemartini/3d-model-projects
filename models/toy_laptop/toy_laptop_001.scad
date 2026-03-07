@@ -39,7 +39,7 @@ stop_lug_w       = 4.0;  // shoulder width (mm)
 // ── Knuckle parameters (interleaved print-in-place hinge) ───────────────────
 n_knuckles    = 7;       // total knuckles (odd count: base gets 4, lid gets 3)
 knuckle_gap   = 0.5;     // axial clearance between adjacent knuckles (mm)
-slot_clearance = knuckle_gap; // radial clearance for lid-knuckle sweep slots
+slot_clearance = 0.5;    // radial clearance for lid-knuckle sweep slots (mm)
 knuckle_w     = (base_w - (n_knuckles - 1) * knuckle_gap) / n_knuckles;
                           // ≈ 35.29 mm per knuckle
 
