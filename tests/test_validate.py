@@ -393,7 +393,7 @@ def test_closure_clearance_fail_key_protrusion():
 
 def test_closure_clearance_fail_too_tight():
     """Clearance between 0 and 2.0 mm must fail (too tight)."""
-    # 165.0 - 164.0 = 1.0 mm clearance, below MIN_CLEARANCE_MM=2.0
+    # 165.0 - 164.0 = 1.0 mm clearance, below MIN_CLOSURE_CLEARANCE_MM=2.0
     meta = _make_closure_meta(keyboard_back_edge_y=164.0, screen_pocket_front_y=165.0)
     result = check_closure_clearance(meta)
     assert result.status == ValidationResult.FAIL
