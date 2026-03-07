@@ -444,6 +444,16 @@ cd models/<model-name>
 python scripts/validate.py models/stand/output/stand_001.stl
 ```
 
+### Post-Export: Copy STL to Downloads
+
+After every STL export, **always** copy the generated STL file to `~/Downloads/`, replacing any existing file with the same name:
+
+```bash
+cp models/<model-name>/output/<file>.stl ~/Downloads/<file>.stl
+```
+
+This makes the file immediately accessible for import into BambuStudio or transfer to the printer.
+
 ### OpenSCAD Design Tips
 
 - Use `$fn` to control curve smoothness (higher = smoother but slower to render)
