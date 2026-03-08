@@ -1,5 +1,5 @@
 // ============================================================================
-// Spa Head & Neck Rest — v001
+// Spa Head & Neck Rest — v002
 // Clips onto overhanging spa tile, provides contoured neck + head support
 // Material: PETG  |  Printer: Bambu Lab H2D
 // ============================================================================
@@ -33,7 +33,7 @@ fric_rib_w        = 1.0;     // friction rib width (mm)
 rest_width        = 250;     // width along tile edge — Z axis (mm)
 rest_height       = 160;     // vertical height — Y axis (mm)
 rest_depth        = 80;      // depth from back wall to front baseline — X axis (mm)
-wall_thick        = 4;       // shell wall thickness (mm)
+wall_thick        = 6;       // shell wall thickness (mm) — v002: was 4, thicker for print reliability
 
 // ── Contour parameters ──────────────────────────────────────────────────────
 neck_zone_h       = 55;      // neck roll zone height (mm)
@@ -49,7 +49,7 @@ drain_hole_d      = 8;       // bottom drain hole diameter (mm)
 drain_hole_n      = 3;       // number of bottom drain holes
 
 // ── Internal ribs ───────────────────────────────────────────────────────────
-int_rib_n         = 3;       // number of internal structural ribs
+int_rib_n         = 5;       // number of internal structural ribs — v002: was 3, closer spacing for stability
 int_rib_t         = 3;       // internal rib thickness in Z (mm)
 
 // ── Derived ─────────────────────────────────────────────────────────────────
@@ -261,6 +261,27 @@ module internal_ribs() {
 }
 
 // ============================================================================
+// MODULE: head_zone_ties — horizontal tie ribs in the head cradle zone
+// Connects back wall to contoured front at critical heights to prevent
+// spaghetti failure from unsupported thin walls in the concave recess.
+// ============================================================================
+module head_zone_ties() {
+    tie_ys = [90, 120, 150];   // Y positions spanning head cradle zone
+
+    for (ty = tie_ys) {
+        translate([0, 0, 0])
+            linear_extrude(rest_width)
+                intersection() {
+                    offset(r = -wall_thick)
+                        rest_body_2d();
+                    // Horizontal slab at this Y height
+                    translate([back_x, ty])
+                        square([rest_depth, int_rib_t]);
+                }
+    }
+}
+
+// ============================================================================
 // MODULE: spa_headrest — complete 3D assembly
 // ============================================================================
 module spa_headrest() {
@@ -280,6 +301,8 @@ module spa_headrest() {
     }
     // Internal structural ribs
     internal_ribs();
+    // Horizontal tie ribs in head cradle zone (v002 — anti-spaghetti)
+    head_zone_ties();
 }
 
 // ============================================================================

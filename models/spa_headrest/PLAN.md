@@ -5,11 +5,11 @@
 | Field          | Value                                          |
 |----------------|------------------------------------------------|
 | Name           | Spa Head & Neck Rest                           |
-| Version        | 001                                            |
+| Version        | 002                                            |
 | Source         | `models/spa_headrest/spa_headrest_001.scad`     |
 | Output         | `models/spa_headrest/output/`                   |
 | Branch         | `claude/youthful-rhodes`                        |
-| Material       | PETG (240 C nozzle, 70 C bed)                  |
+| Material       | PETG (235 C nozzle, 70 C bed)                  |
 
 ## Design Intent
 
@@ -63,9 +63,10 @@ A clip-on head and neck rest for a custom spa. The tile at the spa edge overhang
 
 | Parameter           | Value   | Notes                              |
 |---------------------|---------|------------------------------------|
-| Shell wall thickness| 4 mm    | Throughout                         |
-| Internal ribs       | 3       | Vertical ribs, 3 mm thick         |
-| Back wall           | 4 mm    | Flat, faces tile                   |
+| Shell wall thickness| 6 mm    | Throughout (v002: was 4 mm)        |
+| Internal ribs       | 5       | Vertical ribs, 3 mm thick (v002: was 3) |
+| Head zone tie ribs  | 3       | Horizontal ribs at Y=90,120,150 mm |
+| Back wall           | 6 mm    | Flat, faces tile                   |
 
 ### Drainage
 
@@ -84,15 +85,27 @@ A clip-on head and neck rest for a custom spa. The tile at the spa edge overhang
 
 ## Print Settings
 
-| Parameter         | Value       |
-|-------------------|-------------|
-| Layer height      | 0.2 mm      |
-| Perimeters        | 3-4 walls   |
-| Infill            | 15-20 %     |
-| Material          | PETG        |
-| Nozzle temp       | 240 C       |
-| Bed temp          | 70 C        |
-| Supports          | None (designed to avoid >45 deg overhangs) |
+| Parameter                | Value       | Notes                                          |
+|--------------------------|-------------|-------------------------------------------------|
+| Layer height             | 0.16 mm     | v002: was 0.2; finer layers improve overhang quality |
+| Perimeters               | 3-4 walls   |                                                 |
+| Infill                   | 20-25 % gyroid | v002: was 15-20%; gyroid gives omnidirectional support |
+| Material                 | PETG        |                                                 |
+| Nozzle temp              | 235 C       | v002: was 240; cooler = faster solidification   |
+| Bed temp                 | 70 C        |                                                 |
+| Max print speed          | 150 mm/s    | v002: reduce from default to lower nozzle-knock risk |
+| Outer wall speed         | 80 mm/s     | Slower outer walls bond better on concave surfaces |
+| Slow down for overhangs  | On          | Bambu Studio auto-slows on detected overhangs   |
+| Min layer time           | 12 s        | v002: was 8; more cooling time per layer         |
+| Part cooling fan         | 70-80 %     | Aggressive cooling in upper zones                |
+| Supports                 | None        | Designed to avoid >45 deg overhangs              |
+
+### Pre-Print Checklist
+
+- Dry PETG filament (55 C for 4-6 hours) — wet PETG creates steam bubbles causing clogs
+- Use textured PEI plate for PETG adhesion
+- Clean bed with IPA before print
+- Enable spaghetti detection (Medium or High sensitivity) in Bambu Studio
 
 ## Tolerances Summary
 
@@ -106,3 +119,4 @@ A clip-on head and neck rest for a custom spa. The tile at the spa edge overhang
 | Version | Date       | Changes                      |
 |---------|------------|------------------------------|
 | 001     | 2026-03-06 | Initial design               |
+| 002     | 2026-03-08 | Fix print failure: wall 4→6mm, ribs 3→5, add head zone ties, tune print settings |
