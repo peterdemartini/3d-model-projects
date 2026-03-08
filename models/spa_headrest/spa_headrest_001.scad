@@ -17,9 +17,10 @@ $fn = 64;
 // ── Tile parameters ─────────────────────────────────────────────────────────
 tile_thickness    = 29.32;   // measured tile thickness (mm)
 tile_overhang     = 40;      // tile overhang into spa (mm)
+clip_interference = 0.52;    // total interference fit (0.26 mm/side)
 
 // ── Clip parameters ─────────────────────────────────────────────────────────
-clip_gap          = 28.8;    // interference fit gap for tile (mm)
+clip_gap          = tile_thickness - clip_interference; // derived gap (mm)
 clip_top_arm      = 15;      // top arm length from spine (mm)
 clip_bot_arm      = 30;      // bottom arm length from spine (mm)
 clip_arm_thick    = 4;       // arm thickness (mm)
@@ -56,6 +57,8 @@ back_x            = clip_bot_arm;              // rest body back wall X position
 front_x           = clip_bot_arm + rest_depth; // rest body front baseline X
 clip_total_h      = 2 * clip_arm_thick + clip_gap; // total clip height
 model_height      = rest_height + clip_total_h;     // total model height (Y)
+
+assert(clip_bot_arm <= tile_overhang, "Bottom arm exceeds tile overhang");
 
 // ── Contour centers ─────────────────────────────────────────────────────────
 neck_center_y     = neck_zone_h * 0.5;                    // 27.5 mm
@@ -178,18 +181,17 @@ module shell_2d() {
 // ============================================================================
 module drain_slots() {
     spacing = rest_width / (drain_slot_n + 1);
-    slot_x = clip_bot_arm / 2 - drain_slot_w / 2; // centered on bottom arm
+    slot_x_bot = clip_bot_arm / 2 - drain_slot_w / 2; // centered on bottom arm
+    slot_x_top = clip_top_arm / 2 - drain_slot_w / 2; // centered on top arm
 
     for (i = [1:drain_slot_n]) {
         z = i * spacing - drain_slot_l / 2;
-        // Through bottom arm (Y direction)
-        translate([slot_x, rest_height - 1, z])
+        // Through bottom arm
+        translate([slot_x_bot, rest_height - 1, z])
             cube([drain_slot_w, clip_arm_thick + 2, drain_slot_l]);
-        // Through top arm (only if slot X is within top arm)
-        if (slot_x + drain_slot_w <= clip_top_arm) {
-            translate([slot_x, rest_height + clip_arm_thick + clip_gap - 1, z])
-                cube([drain_slot_w, clip_arm_thick + 2, drain_slot_l]);
-        }
+        // Through top arm
+        translate([slot_x_top, rest_height + clip_arm_thick + clip_gap - 1, z])
+            cube([drain_slot_w, clip_arm_thick + 2, drain_slot_l]);
     }
 }
 
@@ -215,22 +217,22 @@ module friction_ribs() {
     bot_inner_y = rest_height + clip_arm_thick;
     top_inner_y = rest_height + clip_arm_thick + clip_gap;
 
-    // Bottom arm ribs (on top surface, facing tile)
+    // Bottom arm ribs (protrude upward into gap, facing tile)
     num_bot = floor((clip_bot_arm - 4) / fric_rib_spacing);
     for (i = [1:num_bot]) {
         x = clip_arm_thick + i * fric_rib_spacing;
         if (x + fric_rib_w <= clip_bot_arm) {
-            translate([x, bot_inner_y - fric_rib_h, 0])
+            translate([x, bot_inner_y, 0])
                 cube([fric_rib_w, fric_rib_h, rest_width]);
         }
     }
 
-    // Top arm ribs (on bottom surface, facing tile)
+    // Top arm ribs (protrude downward into gap, facing tile)
     num_top = floor((clip_top_arm - 4) / fric_rib_spacing);
     for (i = [1:num_top]) {
         x = clip_arm_thick + i * fric_rib_spacing;
         if (x + fric_rib_w <= clip_top_arm) {
-            translate([x, top_inner_y, 0])
+            translate([x, top_inner_y - fric_rib_h, 0])
                 cube([fric_rib_w, fric_rib_h, rest_width]);
         }
     }

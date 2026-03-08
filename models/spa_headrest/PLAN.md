@@ -23,13 +23,13 @@ A clip-on head and neck rest for a custom spa. The tile at the spa edge overhang
 | Tile overhang     | 40 mm    | How far tile extends into spa      |
 | Tile surface      | Smooth / glazed | Requires friction features  |
 
-## Overall Dimensions
+## Overall Dimensions (print-pose, post-rotation)
 
-| Axis | Dimension | Description                                   |
-|------|-----------|-----------------------------------------------|
-| X    | 250 mm    | Width — spans along the tile edge             |
-| Y    | ~140 mm   | Depth — 30 mm clip inward + 30 mm tile + 80 mm rest |
-| Z    | ~195 mm   | Height — clip top arm + 30 mm tile + 160 mm rest |
+| Axis | Dimension | Description                                        |
+|------|-----------|----------------------------------------------------|
+| X    | ~140 mm   | Depth — clip spine to rest front                   |
+| Y    | 250 mm    | Width — spans along the tile edge                  |
+| Z    | ~197 mm   | Height — rest bottom to clip top (160 + 4 + 29 + 4)|
 
 **Print pose**: back surface (tile-facing) flat on bed, clip arms facing up.
 
@@ -71,7 +71,7 @@ A clip-on head and neck rest for a custom spa. The tile at the spa edge overhang
 
 | Feature               | Spec                              |
 |-----------------------|-----------------------------------|
-| Clip drain slots      | 4 oval slots, 8 mm x 20 mm       |
+| Clip drain slots      | 4 rectangular slots, 8 mm × 20 mm |
 | Bottom drain holes    | 3 holes, 8 mm diameter            |
 | Internal channels     | Ribs don't fully seal compartments |
 
