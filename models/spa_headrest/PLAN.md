@@ -1,11 +1,11 @@
-# Spa Head & Neck Rest — Design Specification
+# Spa Neck Rest — Design Specification
 
 ## Model Identity
 
 | Field          | Value                                          |
 |----------------|------------------------------------------------|
-| Name           | Spa Head & Neck Rest                           |
-| Version        | 002                                            |
+| Name           | Spa Neck Rest                                  |
+| Version        | 003                                            |
 | Source         | `models/spa_headrest/spa_headrest_001.scad`     |
 | Output         | `models/spa_headrest/output/`                   |
 | Branch         | `claude/youthful-rhodes`                        |
@@ -13,7 +13,7 @@
 
 ## Design Intent
 
-A clip-on head and neck rest for a custom spa. The tile at the spa edge overhangs into the interior and its sharp edge is uncomfortable to lean against. This rest clips onto the tile overhang and provides a contoured surface with a neck roll and head cradle.
+A clip-on neck rest for a custom spa. The tile at the spa edge overhangs into the interior and its sharp edge is uncomfortable to lean against. This rest wraps around the tile — the clip grips the tile in the middle, with the contoured rest surface extending both above and below. The top of the rest is flush with the tile's top surface.
 
 ## Tile Parameters
 
@@ -27,15 +27,15 @@ A clip-on head and neck rest for a custom spa. The tile at the spa edge overhang
 
 | Axis | Dimension | Description                                        |
 |------|-----------|----------------------------------------------------|
-| X    | ~140 mm   | Depth — clip spine to rest front                   |
+| X    | ~125 mm   | Depth — clip spine to rest front                   |
 | Y    | 250 mm    | Width — spans along the tile edge                  |
-| Z    | ~197 mm   | Height — rest bottom to clip top (160 + 4 + 29 + 4)|
+| Z    | ~117 mm   | Height — rest bottom to rest top (40 + 37 + 40)    |
 
-**Print pose**: back surface (tile-facing) flat on bed, clip arms facing up.
+**Print pose**: back surface (tile-facing) flat on bed, clip in the middle height.
 
 ## Component Specifications
 
-### Clip (C-shape, wraps around tile)
+### Clip (C-shape, wraps around tile, centered vertically)
 
 | Parameter           | Value   | Notes                              |
 |---------------------|---------|------------------------------------|
@@ -43,29 +43,27 @@ A clip-on head and neck rest for a custom spa. The tile at the spa edge overhang
 | Top arm length      | 15 mm   | Sits on top of tile surface        |
 | Bottom arm length   | 30 mm   | Extends inward under tile          |
 | Arm thickness       | 4 mm    | Both top and bottom arms           |
+| Clip Y position     | Y=40 to Y=76.8 | Centered in model height    |
 | Friction ribs       | 0.4 mm  | Height, 2 mm spacing, on all inner surfaces |
 | Entry chamfer       | 2 mm    | Flared opening to guide tile in    |
 
-### Rest Surface (contoured, two-zone)
+### Rest Surface (contoured, neck-only)
 
-| Parameter              | Value   | Notes                           |
-|------------------------|---------|---------------------------------|
-| Total height           | 160 mm  | Vertical, hanging from tile     |
-| Neck roll zone         | 55 mm   | Lower portion, convex bump      |
-| Neck roll protrusion   | 15 mm   | Peak of convex bump             |
-| Neck roll radius       | ~40 mm  | Radius of convex curve          |
-| Head area zone         | 105 mm  | Upper portion, concave cradle   |
-| Head area depth        | 8 mm    | Depth of concave recess         |
-| Head area radius       | ~120 mm | Radius of concave curve         |
-| Depth (protrusion)     | 80 mm   | From tile face into spa         |
+| Parameter              | Value    | Notes                           |
+|------------------------|----------|---------------------------------|
+| Rest below clip        | 40 mm    | Hangs below tile                |
+| Rest above clip        | 40 mm    | Flush with tile top surface     |
+| Total usable height    | 80 mm    | v003: was 160 mm                |
+| Neck roll protrusion   | 15 mm    | Peak of convex bump (centered)  |
+| Depth (protrusion)     | 80 mm    | From tile face into spa         |
 
 ### Structure
 
 | Parameter           | Value   | Notes                              |
 |---------------------|---------|------------------------------------|
-| Shell wall thickness| 6 mm    | Throughout (v002: was 4 mm)        |
-| Internal ribs       | 5       | Vertical ribs, 3 mm thick (v002: was 3) |
-| Head zone tie ribs  | 3       | Horizontal ribs at Y=90,120,150 mm |
+| Shell wall thickness| 6 mm    | Throughout                         |
+| Internal ribs       | 3       | Vertical ribs, 3 mm thick         |
+| Support braces      | 2       | 45 deg triangles above and below clip |
 | Back wall           | 6 mm    | Flat, faces tile                   |
 
 ### Drainage
@@ -87,18 +85,18 @@ A clip-on head and neck rest for a custom spa. The tile at the spa edge overhang
 
 | Parameter                | Value       | Notes                                          |
 |--------------------------|-------------|-------------------------------------------------|
-| Layer height             | 0.16 mm     | v002: was 0.2; finer layers improve overhang quality |
+| Layer height             | 0.16 mm     | Finer layers improve overhang quality           |
 | Perimeters               | 3-4 walls   |                                                 |
-| Infill                   | 20-25 % gyroid | v002: was 15-20%; gyroid gives omnidirectional support |
+| Infill                   | 20-25 % gyroid | Gyroid gives omnidirectional support         |
 | Material                 | PETG        |                                                 |
-| Nozzle temp              | 235 C       | v002: was 240; cooler = faster solidification   |
+| Nozzle temp              | 235 C       | Cooler = faster solidification                  |
 | Bed temp                 | 70 C        |                                                 |
-| Max print speed          | 150 mm/s    | v002: reduce from default to lower nozzle-knock risk |
-| Outer wall speed         | 80 mm/s     | Slower outer walls bond better on concave surfaces |
+| Max print speed          | 150 mm/s    | Reduce from default to lower nozzle-knock risk  |
+| Outer wall speed         | 80 mm/s     | Slower outer walls bond better                  |
 | Slow down for overhangs  | On          | Bambu Studio auto-slows on detected overhangs   |
-| Min layer time           | 12 s        | v002: was 8; more cooling time per layer         |
-| Part cooling fan         | 70-80 %     | Aggressive cooling in upper zones                |
-| Supports                 | None        | Designed to avoid >45 deg overhangs              |
+| Min layer time           | 12 s        | More cooling time per layer                     |
+| Part cooling fan         | 70-80 %     | Aggressive cooling                              |
+| Supports                 | None        | Two 45 deg braces designed in; no support needed |
 
 ### Pre-Print Checklist
 
@@ -111,12 +109,13 @@ A clip-on head and neck rest for a custom spa. The tile at the spa edge overhang
 
 | Fit            | Clearance    | Application          |
 |----------------|-------------|----------------------|
-| Tile clip      | -0.25 mm/side | Interference fit (friction grip) |
+| Tile clip      | -0.26 mm/side | Interference fit (friction grip) |
 | Friction ribs  | +0.4 mm height | Extra grip on glazed tile |
 
 ## Iteration Log
 
 | Version | Date       | Changes                      |
 |---------|------------|------------------------------|
-| 001     | 2026-03-06 | Initial design               |
-| 002     | 2026-03-08 | Fix print failure: wall 4→6mm, ribs 3→5, add head zone ties, tune print settings |
+| 001     | 2026-03-06 | Initial design (clip at top, 160mm rest, neck+head) |
+| 002     | 2026-03-08 | Fix print failure: wall 4→6mm, ribs 3→5, head zone ties |
+| 003     | 2026-03-08 | Full redesign: wrap-around layout, clip centered, neck-only 80mm, no head cradle |
