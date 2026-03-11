@@ -309,6 +309,8 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
     - barrel wall (barrel_od - bore_d)/2 ≥ min_wall_mm
     - hard_stop_angle ≤ HARD_STOP_MAX_DEG
     - knuckle_gap ≥ KNUCKLE_GAP_MIN_MM (axial clearance for FDM print-in-place)
+    - lid_slot_clearance ≥ LID_SLOT_CLEARANCE_MIN_MM (lid must not obstruct base barrels)
+    - pin_head_clearance ≥ PIN_HEAD_CLEARANCE_MIN_MM (pin head must not fuse with bore)
     """
     h = meta["hinge"]
     pin_d      = float(h["pin_d_mm"])
