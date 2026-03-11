@@ -8,7 +8,9 @@
     "min_wall_mm": 1.2,
     "type": "interleaved_knuckle",
     "n_knuckles": 7,
-    "knuckle_gap_mm": 0.5
+    "knuckle_gap_mm": 0.5,
+    "lid_slot_clearance_mm": 0.5,
+    "pin_head_clearance_mm": 0.25
   },
   "closure": {
     "base_d_mm": 180,

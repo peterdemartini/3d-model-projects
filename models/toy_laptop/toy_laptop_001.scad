@@ -29,7 +29,7 @@ barrel_od        = 12.0;  // barrel outer diameter; wall=(12-5)/2=3.5 mm > 1.2 m
 barrel_r         = barrel_od / 2;
 bore_r           = bore_d / 2;
 pin_r            = pin_d / 2;
-pin_head_r       = bore_r - 0.15; // head radius 2.35 mm → 0.15 mm radial clearance inside bore
+pin_head_r       = bore_r - 0.25; // head radius 2.25 mm → 0.25 mm radial clearance inside bore
 pin_head_h       = 2.0;           // axial extent of each end cap on the pin
 hinge_angle      = 90;   // print-pose interior angle: 90° = lid perpendicular to base
 hard_stop_angle  = 135;  // absolute max opening
@@ -263,6 +263,20 @@ module lid() {
         // ── Screen pocket (on inner face — Z = 0, cut toward Z = -screen_depth) ─
         translate([bezel, bezel, -screen_depth])
             cube([screen_w, screen_h_val, screen_depth]);
+
+        // ── Slots for base barrel knuckles (even indices 0, 2, 4, 6) ─────
+        // Mirror of base's lid-knuckle slots: cut away the lid body where it
+        // would overlap base barrel cylinders near the hinge axis (Y=0, Z=0).
+        // Without these slots the lid plate fuses with base barrels during FDM
+        // printing and the hinge cannot rotate.
+        for (i = [0 : 2 : n_knuckles - 1]) {
+            translate([knuckle_x(i) - knuckle_gap,
+                       -barrel_r - slot_clearance,
+                       -barrel_r - slot_clearance])
+                cube([knuckle_w + 2 * knuckle_gap,
+                      barrel_r + slot_clearance + 1.0,
+                      barrel_od + 2 * slot_clearance + 2.0]);
+        }
     }
 }
 

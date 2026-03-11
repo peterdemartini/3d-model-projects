@@ -9,6 +9,8 @@ import trimesh
 # sys.path is configured in conftest.py
 from validate import (
     BUILD_VOLUME_MM,
+    LID_SLOT_CLEARANCE_MIN_MM,
+    PIN_HEAD_CLEARANCE_MIN_MM,
     ValidationResult,
     check_build_volume,
     check_closure_clearance,
@@ -244,6 +246,8 @@ def _make_hinge_meta(
     min_wall=1.2,
     n_knuckles=7,
     knuckle_gap=0.5,
+    lid_slot_clearance=0.5,
+    pin_head_clearance=0.25,
 ):
     """Return a meta dict with hinge section for testing."""
     return {
@@ -256,6 +260,8 @@ def _make_hinge_meta(
             "type": "interleaved_knuckle",
             "n_knuckles": n_knuckles,
             "knuckle_gap_mm": knuckle_gap,
+            "lid_slot_clearance_mm": lid_slot_clearance,
+            "pin_head_clearance_mm": pin_head_clearance,
         }
     }
 
@@ -347,6 +353,54 @@ def test_hinge_parameters_fail_radial_clearance_just_over_upper():
     meta = _make_hinge_meta(pin_d=4.0, bore_d=5.62, knuckle_gap=0.5)
     result = check_hinge_parameters(meta)
     assert result.status == ValidationResult.FAIL
+
+
+# ── lid_slot_clearance (hinge obstruction check) ─────────────────────────────
+
+def test_hinge_parameters_pass_with_lid_slot_clearance():
+    """Lid slot clearance of 0.5 mm (above 0.4 mm min) should pass."""
+    meta = _make_hinge_meta(lid_slot_clearance=0.5)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.PASS
+
+
+def test_hinge_parameters_fail_lid_slot_clearance_too_small():
+    """Lid slot clearance below minimum must fail (lid obstructs base barrels)."""
+    meta = _make_hinge_meta(lid_slot_clearance=0.3)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.FAIL
+    assert "lid_slot_clearance" in result.message
+
+
+def test_hinge_parameters_boundary_lid_slot_clearance():
+    """Lid slot clearance at exactly the minimum (0.4 mm) should pass."""
+    meta = _make_hinge_meta(lid_slot_clearance=LID_SLOT_CLEARANCE_MIN_MM)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.PASS
+
+
+# ── pin_head_clearance (bore fusion check) ───────────────────────────────────
+
+def test_hinge_parameters_pass_with_pin_head_clearance():
+    """Pin head clearance of 0.25 mm (above 0.20 mm min) should pass."""
+    meta = _make_hinge_meta(pin_head_clearance=0.25)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.PASS
+
+
+def test_hinge_parameters_fail_pin_head_clearance_too_small():
+    """Pin head clearance below minimum must fail (pin head may fuse with bore)."""
+    meta = _make_hinge_meta(pin_head_clearance=0.15)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.FAIL
+    assert "pin_head_clearance" in result.message
+
+
+def test_hinge_parameters_boundary_pin_head_clearance():
+    """Pin head clearance at exactly the minimum (0.20 mm) should pass."""
+    meta = _make_hinge_meta(pin_head_clearance=PIN_HEAD_CLEARANCE_MIN_MM)
+    result = check_hinge_parameters(meta)
+    assert result.status == ValidationResult.PASS
 
 
 # ── check_closure_clearance ──────────────────────────────────────────────────

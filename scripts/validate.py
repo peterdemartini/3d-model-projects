@@ -29,6 +29,8 @@ RADIAL_CLEARANCE_MIN_MM = 0.4
 RADIAL_CLEARANCE_MAX_MM = 0.8
 KNUCKLE_GAP_MIN_MM = 0.4
 HARD_STOP_MAX_DEG = 135
+LID_SLOT_CLEARANCE_MIN_MM = 0.4
+PIN_HEAD_CLEARANCE_MIN_MM = 0.20
 
 # ── Closure validation thresholds ────────────────────────────────────────────
 MIN_CLOSURE_CLEARANCE_MM = 2.0
@@ -307,6 +309,8 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
     - barrel wall (barrel_od - bore_d)/2 ≥ min_wall_mm
     - hard_stop_angle ≤ HARD_STOP_MAX_DEG
     - knuckle_gap ≥ KNUCKLE_GAP_MIN_MM (axial clearance for FDM print-in-place)
+    - lid_slot_clearance ≥ LID_SLOT_CLEARANCE_MIN_MM (lid must not obstruct base barrels)
+    - pin_head_clearance ≥ PIN_HEAD_CLEARANCE_MIN_MM (pin head must not fuse with bore)
     """
     h = meta["hinge"]
     pin_d      = float(h["pin_d_mm"])
@@ -315,9 +319,11 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
     min_wall   = float(h["min_wall_mm"])
     hard_stop  = float(h["hard_stop_angle_deg"])
 
-    radial_clearance = (bore_d - pin_d) / 2
-    barrel_wall      = (barrel_od - bore_d) / 2
-    knuckle_gap      = float(h.get("knuckle_gap_mm", 0))
+    radial_clearance   = (bore_d - pin_d) / 2
+    barrel_wall        = (barrel_od - bore_d) / 2
+    knuckle_gap        = float(h.get("knuckle_gap_mm", 0))
+    lid_slot_clearance = float(h.get("lid_slot_clearance_mm", 0))
+    pin_head_clearance = float(h.get("pin_head_clearance_mm", 0))
 
     issues = []
     if bore_d <= pin_d:
@@ -340,13 +346,24 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
             f"knuckle_gap {knuckle_gap:.2f} mm < {KNUCKLE_GAP_MIN_MM:.2f} mm minimum "
             f"(axial clearance too tight for FDM print-in-place)"
         )
+    if lid_slot_clearance < LID_SLOT_CLEARANCE_MIN_MM:
+        issues.append(
+            f"lid_slot_clearance {lid_slot_clearance:.2f} mm < {LID_SLOT_CLEARANCE_MIN_MM:.2f} mm minimum "
+            f"(lid body obstructs base barrel knuckles — hinge will not rotate)"
+        )
+    if pin_head_clearance < PIN_HEAD_CLEARANCE_MIN_MM:
+        issues.append(
+            f"pin_head_clearance {pin_head_clearance:.2f} mm < {PIN_HEAD_CLEARANCE_MIN_MM:.2f} mm minimum "
+            f"(pin head may fuse with bore wall during FDM printing)"
+        )
 
     if not issues:
         return _pass(
             "hinge_parameters",
             f"Pin {pin_d} mm ∅, bore {bore_d} mm ∅, radial clearance "
             f"{radial_clearance:.2f} mm, barrel wall {barrel_wall:.2f} mm, "
-            f"knuckle gap {knuckle_gap:.2f} mm, hard stop {hard_stop:.0f}°",
+            f"knuckle gap {knuckle_gap:.2f} mm, lid slot clearance {lid_slot_clearance:.2f} mm, "
+            f"pin head clearance {pin_head_clearance:.2f} mm, hard stop {hard_stop:.0f}°",
         )
     return _fail("hinge_parameters", "; ".join(issues))
 
