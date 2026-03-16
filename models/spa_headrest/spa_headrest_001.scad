@@ -1,5 +1,5 @@
 // ============================================================================
-// Spa Headrest v2 — Pillow-Style with Tile Friction Clip
+// Spa Headrest v001 — Pillow-Style with Tile Friction Clip
 // Compact pillow-shaped pad with tile slot, triangle supports, flowing contour
 // Material: PETG  |  Printer: Bambu Lab H2D
 // ============================================================================
@@ -34,7 +34,6 @@ pad_height        = 200;     // vertical height — Y axis (mm)
 pad_depth         = 80;      // depth from back to contour peak — X axis (mm)
 wall_thick        = 6;       // shell wall thickness (mm)
 corner_radius     = 40;      // top corner radius in XY profile (mm)
-edge_round        = 8;       // edge rounding radius (mm) — reduced from 10 for faster render
 
 // ── Contour parameters ──────────────────────────────────────────────────────
 head_bulge        = 10;      // convex bump at head zone (mm)
@@ -90,16 +89,18 @@ module pad_profile_2d() {
     contour_steps = 80;
     corner_steps  = 16;
 
-    // Front contour points (bottom to top, skipping endpoints handled by corners)
+    // Front contour points (bottom to top, stopping at corner transition)
+    contour_top_y = pad_height - corner_radius;
     front_pts = [
         for (i = [1:contour_steps-1])
-            let(y = i * pad_height / contour_steps)
+            let(y = i * contour_top_y / contour_steps)
             [contour_x(y), y]
     ];
 
     // Top-right rounded corner: arc from 0° to 90°
-    tr_cx = min(contour_x(pad_height), pad_depth) - corner_radius;
-    tr_cy = pad_height - corner_radius;
+    // Arc center X is set so the arc starts at the contour endpoint
+    tr_cx = contour_x(contour_top_y) - corner_radius;
+    tr_cy = contour_top_y;
     top_right_arc = [
         for (i = [0:corner_steps])
             let(a = 90 * i / corner_steps)
@@ -234,11 +235,11 @@ module friction_ribs() {
     for (i = [1:num_ribs]) {
         x = -(slot_arm_thick + i * fric_rib_spacing);
         if (x - fric_rib_w/2 >= -slot_depth) {
-            // Bottom arm: ribs on top surface
-            translate([x, slot_inner_bot_y - fric_rib_h, 0])
+            // Bottom arm: ribs on top surface (protrude upward into gap)
+            translate([x, slot_inner_bot_y, 0])
                 cube([fric_rib_w, fric_rib_h, pad_width]);
-            // Top arm: ribs on bottom surface
-            translate([x, slot_inner_top_y, 0])
+            // Top arm: ribs on bottom surface (protrude downward into gap)
+            translate([x, slot_inner_top_y - fric_rib_h, 0])
                 cube([fric_rib_w, fric_rib_h, pad_width]);
         }
     }
@@ -319,8 +320,11 @@ module spa_headrest() {
 // RENDER — print orientation
 // Model space: X=depth, Y=height, Z=width
 // rotate([90,0,0]): X→X, Y→-Z, Z→Y → print: X=depth, Y=width, Z=height
-// Translate to put base at Z=0 and all geometry ≥ 0
-// Note: OpenSCAD export may offset Z by wall_thick; -wall_thick corrects it
+// Translate X by +slot_depth so slot geometry (at negative X) starts at 0.
+// Translate Y by +pad_width so rotated Z→Y stays positive.
+// Translate Z by -wall_thick to compensate for CGAL boolean artifact that
+// drops the thin shell bottom edge, placing Z_min at wall_thick instead of 0.
+// Verified: base_on_bed = PASS (Z = 0.00 mm) with this offset.
 // ============================================================================
 translate([slot_depth, pad_width, -wall_thick])
     rotate([90, 0, 0])

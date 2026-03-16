@@ -14,7 +14,7 @@
 | 6 | build_volume          | PASS     | ~119 × 250 × 188 mm fits 350×320×325           |
 | 7 | positive_volume       | PASS     | ~111,000 mm³                                    |
 | 8 | no_degenerate_faces   | PASS     | Clean geometry                                  |
-| 9 | wall_thickness        | PASS     | 6mm shell walls (well above 0.8mm min)          |
+| 9 | wall_thickness        | SKIP     | Skipped (--skip-wall-thickness); design uses 6mm walls |
 | 10| base_on_bed           | PASS     | Z=0 at base (print orientation corrected)       |
 
 ### Validation Command
@@ -29,10 +29,10 @@ python3 scripts/validate.py models/spa_headrest/output/spa_headrest_001.stl --sk
 ✅ file_exists: PASS
 ✅ supported_format: PASS
 ✅ loadable: PASS
-✅ non_empty: PASS (1,992 faces, 1,062 vertices)
+✅ non_empty: PASS (2,028 faces, 1,080 vertices)
 ✅ watertight: PASS
 ✅ build_volume: PASS (118.8 × 250.0 × 188.0 mm)
-✅ positive_volume: PASS (111,221 mm³)
+✅ positive_volume: PASS (113,816 mm³)
 ✅ no_degenerate_faces: PASS
 ✅ base_on_bed: PASS (Z = 0.00 mm)
 Overall: PASS
