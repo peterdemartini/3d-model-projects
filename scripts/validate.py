@@ -530,6 +530,72 @@ def check_wall_thickness(mesh) -> ValidationResult:
         return _warn("wall_thickness", f"Wall thickness check skipped: {exc}")
 
 
+def check_contact_face_coverage(
+    mesh,
+    face_axis: int = 0,
+    face_side: str = "max",
+    sweep_axis: int = 1,
+    height_axis: int = 2,
+    min_coverage_pct: float = 90.0,
+    num_samples: int = 50,
+) -> ValidationResult:
+    """
+    Check that a contact face (e.g. headrest front) has continuous shell material.
+
+    Casts rays inward from the face at evenly spaced positions along sweep_axis,
+    at mid-height on height_axis. Reports the percentage of rays that hit geometry.
+
+    Parameters:
+        face_axis: axis perpendicular to the contact face (0=X, 1=Y, 2=Z)
+        face_side: "max" or "min" — which end of face_axis the contact face is on
+        sweep_axis: axis to sweep sample positions along (the width)
+        height_axis: remaining axis (used for mid-height sampling)
+        min_coverage_pct: minimum % of sample rays that must hit geometry
+        num_samples: number of rays to cast across sweep_axis
+    """
+    bounds = mesh.bounds
+    sweep_min = bounds[0][sweep_axis]
+    sweep_max = bounds[1][sweep_axis]
+    height_mid = (bounds[0][height_axis] + bounds[1][height_axis]) / 2
+
+    if face_side == "max":
+        face_coord = bounds[1][face_axis] + 5.0
+        direction_sign = -1.0
+    else:
+        face_coord = bounds[0][face_axis] - 5.0
+        direction_sign = 1.0
+
+    # Margin: skip ends (end caps will always have material)
+    margin = (sweep_max - sweep_min) * 0.05
+    positions = np.linspace(sweep_min + margin, sweep_max - margin, num_samples)
+
+    origins = np.zeros((num_samples, 3))
+    directions = np.zeros((num_samples, 3))
+    for i, pos in enumerate(positions):
+        origins[i][face_axis] = face_coord
+        origins[i][sweep_axis] = pos
+        origins[i][height_axis] = height_mid
+        directions[i][face_axis] = direction_sign
+
+    locations, index_ray, _ = mesh.ray.intersects_location(
+        ray_origins=origins, ray_directions=directions, multiple_hits=False
+    )
+
+    hits = len(set(index_ray))
+    coverage_pct = 100.0 * hits / num_samples
+
+    if coverage_pct >= min_coverage_pct:
+        return _pass(
+            "contact_face_coverage",
+            f"Contact face coverage = {coverage_pct:.0f}% ({hits}/{num_samples} rays hit)",
+        )
+    return _fail(
+        "contact_face_coverage",
+        f"Contact face coverage = {coverage_pct:.0f}% ({hits}/{num_samples} rays hit, "
+        f"need ≥{min_coverage_pct:.0f}%). Front face may have gaps or only partial shell.",
+    )
+
+
 # ── Main validation pipeline ──────────────────────────────────────────────────
 
 def validate_file(

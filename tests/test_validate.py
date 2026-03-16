@@ -2,6 +2,8 @@
 tests/test_validate.py — Unit tests for scripts/validate.py
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 import trimesh
@@ -14,6 +16,7 @@ from validate import (
     ValidationResult,
     check_build_volume,
     check_closure_clearance,
+    check_contact_face_coverage,
     check_file_exists,
     check_hinge_parameters,
     check_no_degenerate_faces,
@@ -452,3 +455,50 @@ def test_closure_clearance_fail_too_tight():
     result = check_closure_clearance(meta)
     assert result.status == ValidationResult.FAIL
     assert "clearance" in result.message.lower()
+
+
+# ── check_contact_face_coverage ──────────────────────────────────────────────
+
+def test_contact_face_coverage_pass_solid_box():
+    """A solid box has full coverage on any face — should pass."""
+    mesh = trimesh.creation.box(extents=(80, 250, 200))
+    result = check_contact_face_coverage(
+        mesh, face_axis=0, face_side="max", sweep_axis=1,
+        height_axis=2, min_coverage_pct=90.0,
+    )
+    assert result.status == ValidationResult.PASS
+
+
+def test_contact_face_coverage_fail_sparse_ribs():
+    """Three thin slabs spaced across a wide span — most rays should miss,
+    coverage should fail."""
+    # 3 thin ribs: 80mm deep (X), 3mm wide (Y), 200mm tall (Z)
+    # placed at Y=62, Y=125, Y=187 across a 250mm span
+    ribs = []
+    for y_pos in [62, 125, 187]:
+        rib = trimesh.creation.box(extents=(80, 3, 200))
+        rib.apply_translation([40, y_pos, 100])
+        ribs.append(rib)
+    mesh = trimesh.util.concatenate(ribs)
+    result = check_contact_face_coverage(
+        mesh, face_axis=0, face_side="max", sweep_axis=1,
+        height_axis=2, min_coverage_pct=90.0,
+    )
+    assert result.status == ValidationResult.FAIL
+    assert "coverage" in result.message.lower()
+
+
+def test_contact_face_coverage_pass_real_stl():
+    """The spa headrest STL should have ≥90% front face coverage after fix."""
+    stl_path = "models/spa_headrest/output/spa_headrest_001.stl"
+    if not Path(stl_path).exists():
+        pytest.skip("STL not exported locally (gitignored output/)")
+    mesh = trimesh.load(stl_path)
+    # In print orientation: X=depth (front face at max X), Y=width (sweep), Z=height
+    result = check_contact_face_coverage(
+        mesh, face_axis=0, face_side="max", sweep_axis=1,
+        height_axis=2, min_coverage_pct=90.0,
+    )
+    assert result.status == ValidationResult.PASS, (
+        f"Front face coverage too low: {result.message}"
+    )
