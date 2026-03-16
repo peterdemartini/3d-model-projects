@@ -9,7 +9,7 @@
 //   Y = height (0 at bottom, positive upward)
 //   Z = width (along tile edge, 0 to pad_width)
 //
-// Side view (XY plane): person is on the +X side (left in profile)
+// Side view (XY plane): person is on the +X side
 // After extrusion, rotate for print orientation (bottom on bed).
 // ============================================================================
 
@@ -20,8 +20,8 @@ tile_thickness    = 29.32;   // measured tile thickness (mm)
 tile_overhang     = 40;      // tile overhang into spa (mm)
 
 // ── Slot (clip) parameters ──────────────────────────────────────────────────
-slot_gap          = 28.8;    // interference fit gap for tile (mm)
-slot_depth        = 40;      // how far tile inserts into slot (mm)
+slot_gap          = tile_thickness - 0.52;  // interference fit gap (mm)
+slot_depth        = 40;      // outer slot depth incl. spine (mm)
 slot_arm_thick    = 5;       // top and bottom arm thickness (mm)
 slot_chamfer      = 2;       // entry flare on slot opening (mm)
 fric_rib_h        = 0.4;     // friction rib height (mm)
@@ -53,6 +53,7 @@ int_rib_t         = 3;       // internal rib thickness in Z (mm)
 
 // ── Derived ─────────────────────────────────────────────────────────────────
 slot_total_h      = 2 * slot_arm_thick + slot_gap;  // total slot height
+slot_insert_depth = slot_depth - slot_arm_thick;     // usable tile insertion depth
 slot_center_y     = pad_height / 2;                  // slot centered vertically
 slot_bot_y        = slot_center_y - slot_total_h / 2;
 slot_top_y        = slot_center_y + slot_total_h / 2;
@@ -67,7 +68,7 @@ head_sigma        = pad_height * head_sigma_frac;
 neck_sigma        = pad_height * neck_sigma_frac;
 
 // Assertions
-assert(slot_depth <= tile_overhang, "Slot depth exceeds tile overhang");
+assert(slot_insert_depth <= tile_overhang, "Slot insertion depth exceeds tile overhang");
 assert(pad_depth > wall_thick * 2, "Pad depth must exceed 2x wall thickness");
 assert(slot_total_h < pad_height, "Slot total height exceeds pad height");
 
@@ -122,6 +123,7 @@ module pad_profile_2d() {
         [[back_x, 0]],                    // bottom-left (back)
         [[contour_x(0), 0]],              // bottom-right (front)
         front_pts,                         // contour from bottom to top
+        [[contour_x(contour_top_y), contour_top_y]],  // explicit endpoint at arc join
         top_right_arc,                     // top-right rounded corner
         top_left_arc                       // top-left rounded corner
     ));
@@ -189,18 +191,6 @@ module slot_chamfers_2d() {
     // Top arm chamfer (bottom-right corner)
     translate([-c, slot_inner_top_y])
         polygon([[0, c], [c, 0], [c, c]]);
-}
-
-// ============================================================================
-// MODULE: full_profile_2d — complete 2D cross-section
-// ============================================================================
-module full_profile_2d() {
-    union() {
-        pad_profile_2d();
-        triangle_top_2d();
-        triangle_bot_2d();
-        slot_2d();
-    }
 }
 
 // ============================================================================
@@ -301,18 +291,10 @@ module spa_headrest_raw() {
 }
 
 // ============================================================================
-// MODULE: spa_headrest — with edge rounding via minkowski
-// Note: minkowski is expensive. For faster preview, use spa_headrest_raw()
+// MODULE: spa_headrest — top-level assembly
+// Edge rounding deferred to slicer settings or post-processing
 // ============================================================================
 module spa_headrest() {
-    // For practical rendering, use offset-based rounding on the 2D profile
-    // and simple extrusion, rather than full 3D minkowski
-
-    // Approach: build the shell with offset rounding on the 2D profile
-    // and round the Z-axis ends with hull of translated slices
-
-    // Simple approach: just use the raw model
-    // Edge rounding will be applied via slicer settings or post-processing
     spa_headrest_raw();
 }
 
