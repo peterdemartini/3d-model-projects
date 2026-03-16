@@ -143,9 +143,12 @@ module pad_inner_2d() {
 // ============================================================================
 module triangle_top_2d() {
     eps = 0.1;  // overlap into pad body to prevent coplanar faces
+    // Cap at pad_height - corner_radius so triangle stays within pad profile
+    // (the back edge curves away above this Y due to the top-left arc)
+    top_y = pad_height - corner_radius;
     polygon([
         [back_x + eps, slot_top_y],           // at slot top, slightly into pad
-        [back_x + eps, pad_height],           // at pad top, slightly into pad
+        [back_x + eps, top_y],                // at pad back edge limit
         [-slot_depth, slot_inner_top_y]        // extends backward to slot depth
     ]);
 }
