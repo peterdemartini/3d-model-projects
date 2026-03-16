@@ -2,6 +2,8 @@
 tests/test_validate.py — Unit tests for scripts/validate.py
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 import trimesh
@@ -489,6 +491,8 @@ def test_contact_face_coverage_fail_sparse_ribs():
 def test_contact_face_coverage_pass_real_stl():
     """The spa headrest STL should have ≥90% front face coverage after fix."""
     stl_path = "models/spa_headrest/output/spa_headrest_001.stl"
+    if not Path(stl_path).exists():
+        pytest.skip("STL not exported locally (gitignored output/)")
     mesh = trimesh.load(stl_path)
     # In print orientation: X=depth (front face at max X), Y=width (sweep), Z=height
     result = check_contact_face_coverage(
