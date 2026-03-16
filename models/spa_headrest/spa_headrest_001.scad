@@ -142,10 +142,11 @@ module pad_inner_2d() {
 // From top of pad down to slot top
 // ============================================================================
 module triangle_top_2d() {
+    eps = 0.1;  // overlap into pad body to prevent coplanar faces
     polygon([
-        [back_x, slot_top_y],           // at slot top, back edge
-        [back_x, pad_height],           // at pad top, back edge
-        [-slot_depth, slot_inner_top_y]  // extends backward to slot depth
+        [back_x + eps, slot_top_y],           // at slot top, slightly into pad
+        [back_x + eps, pad_height],           // at pad top, slightly into pad
+        [-slot_depth, slot_inner_top_y]        // extends backward to slot depth
     ]);
 }
 
@@ -154,10 +155,11 @@ module triangle_top_2d() {
 // From slot bottom down to bottom of pad
 // ============================================================================
 module triangle_bot_2d() {
+    eps = 0.1;  // overlap into pad body to prevent coplanar faces
     polygon([
-        [back_x, slot_bot_y],           // at slot bottom, back edge
-        [back_x, 0],                    // at pad bottom, back edge
-        [-slot_depth, slot_inner_bot_y]  // extends backward to slot depth
+        [back_x + eps, slot_bot_y],           // at slot bottom, slightly into pad
+        [back_x + eps, 0],                    // at pad bottom, slightly into pad
+        [-slot_depth, slot_inner_bot_y]        // extends backward to slot depth
     ]);
 }
 
@@ -165,13 +167,14 @@ module triangle_bot_2d() {
 // MODULE: slot_2d — tile slot cross-section (C-shape opening to the right)
 // ============================================================================
 module slot_2d() {
-    // Bottom arm
+    eps = 0.1;  // overlap into pad body to prevent coplanar faces
+    // Bottom arm (extends eps into pad body)
     translate([-slot_depth, slot_bot_y])
-        square([slot_depth, slot_arm_thick]);
+        square([slot_depth + eps, slot_arm_thick]);
 
-    // Top arm
+    // Top arm (extends eps into pad body)
     translate([-slot_depth, slot_inner_top_y])
-        square([slot_depth, slot_arm_thick]);
+        square([slot_depth + eps, slot_arm_thick]);
 
     // Spine (connects arms at back, inside the pad body)
     translate([-slot_depth, slot_bot_y])
@@ -191,29 +194,6 @@ module slot_chamfers_2d() {
     // Top arm chamfer (bottom-right corner)
     translate([-c, slot_inner_top_y])
         polygon([[0, c], [c, 0], [c, c]]);
-}
-
-// ============================================================================
-// MODULE: shell_2d — hollowed pad + solid slot and supports
-// Build pad shell separately, then union with solid triangles and slot
-// to prevent inner cavity subtraction from affecting structural parts
-// ============================================================================
-module shell_2d() {
-    union() {
-        // Pad shell (hollowed)
-        difference() {
-            pad_profile_2d();
-            pad_inner_2d();
-        }
-        // Solid triangular supports
-        triangle_top_2d();
-        triangle_bot_2d();
-        // Solid tile slot (minus chamfers)
-        difference() {
-            slot_2d();
-            slot_chamfers_2d();
-        }
-    }
 }
 
 // ============================================================================
@@ -273,21 +253,38 @@ module internal_ribs() {
 
 // ============================================================================
 // MODULE: spa_headrest — complete 3D assembly (before rounding)
+// Build as solid outer shell minus inner cavity (not extruded ring) so that
+// the front contour face, back face, and side faces are all continuous shell.
 // ============================================================================
 module spa_headrest_raw() {
-    difference() {
-        union() {
-            // Main shell extruded along Z
+    union() {
+        // Pad body: solid outer minus inner cavity (keeps all 6 faces as shell)
+        difference() {
             linear_extrude(pad_width)
-                shell_2d();
-            // Friction ribs
-            friction_ribs();
+                pad_profile_2d();
+            // Inner cavity inset from all 6 faces by wall_thick
+            translate([0, 0, wall_thick])
+                linear_extrude(pad_width - 2 * wall_thick)
+                    pad_inner_2d();
+            // Drain holes through bottom
+            drain_holes();
         }
-        // Drain holes
-        drain_holes();
+        // Solid triangular supports (no cavity)
+        linear_extrude(pad_width) {
+            triangle_top_2d();
+            triangle_bot_2d();
+        }
+        // Solid tile slot minus chamfers
+        linear_extrude(pad_width)
+            difference() {
+                slot_2d();
+                slot_chamfers_2d();
+            }
+        // Friction ribs on slot inner surfaces
+        friction_ribs();
+        // Internal structural ribs inside the cavity
+        internal_ribs();
     }
-    // Internal structural ribs
-    internal_ribs();
 }
 
 // ============================================================================
@@ -304,10 +301,7 @@ module spa_headrest() {
 // rotate([90,0,0]): X→X, Y→-Z, Z→Y → print: X=depth, Y=width, Z=height
 // Translate X by +slot_depth so slot geometry (at negative X) starts at 0.
 // Translate Y by +pad_width so rotated Z→Y stays positive.
-// Translate Z by -wall_thick to compensate for CGAL boolean artifact that
-// drops the thin shell bottom edge, placing Z_min at wall_thick instead of 0.
-// Verified: base_on_bed = PASS (Z = 0.00 mm) with this offset.
 // ============================================================================
-translate([slot_depth, pad_width, -wall_thick])
+translate([slot_depth, pad_width, 0])
     rotate([90, 0, 0])
         spa_headrest();
