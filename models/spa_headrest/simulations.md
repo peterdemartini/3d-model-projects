@@ -24,8 +24,8 @@ Run from the repo root:
 
 ```bash
 .claude/skills/export-stl/scripts/export-stl.sh \
-  models/spa-headrest/spa_headrest_002.scad \
-  --output models/spa-headrest/output/spa_headrest_002.stl
+  models/spa_headrest/spa_headrest_002.scad \
+  --output models/spa_headrest/output/spa_headrest_002.stl
 ```
 
 #### Expected Geometry Validation (from the skill's built-in checks)
@@ -44,7 +44,7 @@ Expected: manifold geometry, no self-intersections, no degenerate faces.
 ### Step 2: Full Validator Checks
 
 ```bash
-python3 scripts/validate.py models/spa-headrest/output/spa_headrest_002.stl --skip-wall-thickness
+python3 scripts/validate.py models/spa_headrest/output/spa_headrest_002.stl --skip-wall-thickness
 ```
 
 #### Check-by-Check Expected Outcomes
@@ -79,8 +79,8 @@ Render and inspect after every version. Run from the repo root:
 
 ```bash
 .claude/skills/preview-scad/scripts/render-scad.sh \
-  models/spa-headrest/spa_headrest_002.scad \
-  --output models/spa-headrest/output/spa_headrest_002_preview.png \
+  models/spa_headrest/spa_headrest_002.scad \
+  --output models/spa_headrest/output/spa_headrest_002_preview.png \
   --size 1200x900 \
   --render
 ```

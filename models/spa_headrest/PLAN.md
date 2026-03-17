@@ -11,8 +11,8 @@ changes dimensions, tolerances, or design decisions. Keep the iteration log curr
 |-----------------|-------------------------------------------------|
 | Model name      | `spa_headrest`                                  |
 | Current version | `002`                                           |
-| Source file     | `models/spa-headrest/spa_headrest_002.scad`     |
-| Output dir      | `models/spa-headrest/output/`                   |
+| Source file     | `models/spa_headrest/spa_headrest_002.scad`     |
+| Output dir      | `models/spa_headrest/output/`                   |
 
 ---
 
