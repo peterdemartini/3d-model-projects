@@ -29,7 +29,8 @@ tile_overhang     = 40;      // tile overhang into spa (mm)
 slot_gap          = 29.0;    // clearance gap for tile (mm) — was 28.8
 slot_depth        = 40;      // slot arm length from spine (mm)
 slot_arm_thick    = 5;       // arm thickness (mm)
-slot_chamfer      = 2;       // entry flare on gap opening (mm)
+slot_fillet       = 3;       // fillet radius on slot entry edges (mm) — was 2mm chamfer
+spine_thick       = 3;       // spine wall thickness connecting arms (mm) — was slot_arm_thick
 fric_rib_h        = 0.4;     // friction rib height (mm)
 fric_rib_spacing  = 2;       // friction rib center-to-center (mm)
 fric_rib_w        = 1.0;     // friction rib width (mm)
@@ -39,17 +40,17 @@ slot_arc_radius   = 1066.8;  // 7' diameter / 2 (mm)
 
 // ── Pad parameters (reduced from v001) ──────────────────────────────────────
 pad_width         = 200;     // width along tile edge — Z axis (mm) — was 250
-pad_height        = 150;     // total pad height — Y axis (mm) — was 200
+pad_height        = 95;      // total pad height — Y axis (mm) — was 150 (reduced dead space)
 pad_depth         = 55;      // depth from back wall to front baseline — X axis (mm) — was 80
-corner_radius     = 30;      // outer profile corner radius (mm) — was 40
+corner_radius     = 15;      // outer profile corner radius (mm) — proportional to 95mm height
 
 // ── Contour parameters ─────────────────────────────────────────────────────
 head_bulge        = 10;      // head region convex bump (mm)
 neck_dip          = 10;      // neck region concave dip (mm) — was 12
 head_center_frac  = 0.30;    // head bump center as fraction of pad_height
-neck_center_frac  = 0.60;    // neck dip center as fraction of pad_height
-head_sigma_frac   = 0.18;    // head Gaussian spread fraction
-neck_sigma_frac   = 0.15;    // neck Gaussian spread fraction
+neck_center_frac  = 0.70;    // neck dip center — raised for shorter pad
+head_sigma_frac   = 0.22;    // head Gaussian spread — widened for shorter pad
+neck_sigma_frac   = 0.18;    // neck Gaussian spread — widened for shorter pad
 
 // ── Drainage ────────────────────────────────────────────────────────────────
 drain_hole_d      = 8;       // bottom drain hole diameter (mm)
@@ -151,24 +152,38 @@ module pad_profile_2d() {
 // ============================================================================
 module slot_gap_2d() {
     // The gap between the two arms, open to the right (toward person)
-    // Extends from spine (X = slot_arm_thick) to beyond slot_depth
-    translate([slot_arm_thick, bot_inner_y])
-        square([slot_depth - slot_arm_thick + 1, slot_gap]);
+    // Extends from spine (X = spine_thick) to beyond slot_depth
+    translate([spine_thick, bot_inner_y])
+        square([slot_depth - spine_thick + 1, slot_gap]);
 }
 
 // ============================================================================
-// MODULE: slot_chamfers_2d — entry chamfer cuts to widen gap opening
+// MODULE: slot_fillets_2d — rounded entry fillets on slot mouth
+// Quarter-circle arcs replace the old triangular chamfers
 // ============================================================================
-module slot_chamfers_2d() {
-    c = slot_chamfer;
+module slot_fillets_2d() {
+    r = slot_fillet;
+    fillet_steps = 8;
 
-    // Bottom arm inner corner (widens gap entry)
-    translate([slot_depth - c, bot_inner_y - c])
-        polygon([[0, 0], [c, 0], [c, c]]);
+    // Bottom arm entry fillet (concave quarter-circle into gap)
+    translate([slot_depth, bot_inner_y])
+        polygon(concat(
+            [for (i = [0:fillet_steps])
+                let(a = 90 * i / fillet_steps)
+                [-r + r * cos(a), -r * sin(a)]
+            ],
+            [[-r, 0]]
+        ));
 
-    // Top arm inner corner (widens gap entry)
-    translate([slot_depth - c, top_inner_y])
-        polygon([[0, c], [c, 0], [c, c]]);
+    // Top arm entry fillet (mirrored)
+    translate([slot_depth, top_inner_y])
+        polygon(concat(
+            [for (i = [0:fillet_steps])
+                let(a = 90 * i / fillet_steps)
+                [-r + r * cos(a), r * sin(a)]
+            ],
+            [[-r, 0]]
+        ));
 }
 
 // ============================================================================
@@ -196,7 +211,7 @@ module friction_ribs() {
     num_bot = floor((slot_depth - slot_arm_thick) / fric_rib_spacing);
     for (i = [1:num_bot]) {
         x = slot_arm_thick + i * fric_rib_spacing;
-        if (x + fric_rib_w <= slot_depth - slot_chamfer) {
+        if (x + fric_rib_w <= slot_depth - slot_fillet) {
             translate([x, bot_inner_y, 0])
                 cube([fric_rib_w, fric_rib_h, pad_width]);
         }
@@ -206,7 +221,7 @@ module friction_ribs() {
     num_top = floor((slot_depth - slot_arm_thick) / fric_rib_spacing);
     for (i = [1:num_top]) {
         x = slot_arm_thick + i * fric_rib_spacing;
-        if (x + fric_rib_w <= slot_depth - slot_chamfer) {
+        if (x + fric_rib_w <= slot_depth - slot_fillet) {
             translate([x, top_inner_y - fric_rib_h, 0])
                 cube([fric_rib_w, fric_rib_h, pad_width]);
         }
@@ -226,10 +241,10 @@ module curved_gap_3d() {
         hull() {
             translate([arc_dx(z0), 0, z0])
                 linear_extrude(0.01)
-                    union() { slot_gap_2d(); slot_chamfers_2d(); }
+                    union() { slot_gap_2d(); slot_fillets_2d(); }
             translate([arc_dx(z1), 0, z1])
                 linear_extrude(0.01)
-                    union() { slot_gap_2d(); slot_chamfers_2d(); }
+                    union() { slot_gap_2d(); slot_fillets_2d(); }
         }
     }
 }
