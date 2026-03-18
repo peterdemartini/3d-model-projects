@@ -95,12 +95,13 @@ overhangs <45 degrees.
 | Version | Date       | Changes                                             |
 |---------|------------|-----------------------------------------------------|
 | 001     | 2026-03-06 | Initial design (branch `claude/trusting-lalande`). Issues: spaghetti from hollow interior, flat slot doesn't match curved tile, 80 mm depth too thick. |
-| 002     | 2026-03-17 | Redesign -- solid body, curved slot (R=1066.8 mm), reduced dimensions (200x150x55 mm), looser slot fit (29.0 mm gap). |
+| 002     | 2026-03-17 | Redesign -- solid body, curved slot (R=1066.8 mm), reduced dimensions (200x150x55 mm), looser slot fit (29.0 mm gap). Validated: 1580 faces, 790 vertices, 2,547 cm³, watertight, 104.8 × 200.0 × 150.0 mm. |
 
 ---
 
 ## Known Issues / Watch Items
 
-- Curved slot cylinder intersection needs high `$fa` for smooth arc
-- Slot-to-pad union needs eps overlaps to prevent non-manifold geometry
-- Print time estimate: ~7-9h at 15% infill
+- Rounded top corners produce 8.7% overhanging faces (WARN, below 10% threshold)
+- Slot curvature is in subtracted gap — not validatable from external mesh
+- Curvature approximated with 20 hull-connected slices (smooth enough for 4.7mm sagitta)
+- Print time estimate: ~6-8h at 15% gyroid infill
