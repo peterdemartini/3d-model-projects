@@ -575,8 +575,13 @@ def check_no_interior_trapped_volumes(mesh) -> ValidationResult:
     )
 
 
-def check_max_overhang_angle(mesh, max_angle_deg: float = 45.0) -> ValidationResult:
-    """Check that downward-facing faces do not exceed the overhang angle threshold."""
+def check_max_overhang_angle(mesh, max_angle_deg: float = 45.0, max_pct: float = 5.0) -> ValidationResult:
+    """Check that downward-facing faces do not exceed the overhang angle threshold.
+
+    Args:
+        max_pct: Maximum percentage of faces exceeding the angle before FAIL.
+                 Default 5%. Configurable via meta["overhang"]["max_pct"].
+    """
     z_component = mesh.face_normals[:, 2]
     # Downward-facing faces have z_component < 0
     downward = z_component < 0
@@ -586,11 +591,11 @@ def check_max_overhang_angle(mesh, max_angle_deg: float = 45.0) -> ValidationRes
     n_problematic = int(np.sum(problematic))
     pct = n_problematic / n_total * 100 if n_total > 0 else 0.0
 
-    if pct > 5.0:
+    if pct > max_pct:
         return _fail(
             "max_overhang_angle",
             f"{pct:.1f}% of faces ({n_problematic}/{n_total}) exceed "
-            f"{max_angle_deg:.0f}° overhang threshold (>5% limit)",
+            f"{max_angle_deg:.0f}° overhang threshold (>{max_pct:.0f}% limit)",
         )
     if pct > 0:
         return _warn(
@@ -721,9 +726,15 @@ def validate_file(
             results.append(check_max_profile_depth(mesh, meta))
 
     # 15. Spa-headrest general geometry checks
-    if meta is not None and "slot" in meta:
+    if meta is not None and ("slot" in meta or "dimensions" in meta):
         results.append(check_no_interior_trapped_volumes(mesh))
-        results.append(check_max_overhang_angle(mesh))
+        # Read overhang config from meta if present
+        oh_angle = 45.0
+        oh_pct = 5.0
+        if "overhang" in meta:
+            oh_angle = float(meta["overhang"].get("max_angle_deg", 45.0))
+            oh_pct = float(meta["overhang"].get("max_pct", 5.0))
+        results.append(check_max_overhang_angle(mesh, oh_angle, oh_pct))
 
     # 16. Multi-color / Bambu AMS check — WARN if 3MF is monochrome
     results.append(check_3mf_has_colors(path))
