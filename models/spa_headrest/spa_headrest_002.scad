@@ -29,8 +29,8 @@ tile_overhang     = 40;      // tile overhang into spa (mm)
 slot_gap          = 29.0;    // clearance gap for tile (mm) — was 28.8
 slot_depth        = 40;      // slot arm length from spine (mm)
 slot_arm_thick    = 5;       // arm thickness (mm)
-slot_fillet       = 5;       // fillet radius on slot entry edges (mm) — generous rounding
-spine_thick       = 2;       // spine wall thickness connecting arms (mm) — minimum printable
+slot_fillet       = 3;       // fillet radius on slot entry edges (mm) — was 2mm chamfer
+spine_thick       = 3;       // spine wall thickness connecting arms (mm) — was slot_arm_thick
 fric_rib_h        = 0.4;     // friction rib height (mm)
 fric_rib_spacing  = 2;       // friction rib center-to-center (mm)
 fric_rib_w        = 1.0;     // friction rib width (mm)
@@ -40,17 +40,17 @@ slot_arc_radius   = 1066.8;  // 7' diameter / 2 (mm)
 
 // ── Pad parameters (reduced from v001) ──────────────────────────────────────
 pad_width         = 200;     // width along tile edge — Z axis (mm) — was 250
-pad_height        = 75;      // total pad height — Y axis (mm) — tight around slot, 18mm above/below
+pad_height        = 95;      // total pad height — Y axis (mm) — was 150 (reduced dead space)
 pad_depth         = 55;      // depth from back wall to front baseline — X axis (mm) — was 80
-corner_radius     = 10;      // outer profile corner radius (mm) — proportional to 75mm height
+corner_radius     = 15;      // outer profile corner radius (mm) — proportional to 95mm height
 
 // ── Contour parameters ─────────────────────────────────────────────────────
 head_bulge        = 10;      // head region convex bump (mm)
 neck_dip          = 10;      // neck region concave dip (mm) — was 12
-head_center_frac  = 0.35;    // head bump center — tuned for 75mm pad
-neck_center_frac  = 0.75;    // neck dip center — tuned for 75mm pad
-head_sigma_frac   = 0.30;    // head Gaussian spread — wide for compact pad
-neck_sigma_frac   = 0.25;    // neck Gaussian spread — wide for compact pad
+head_center_frac  = 0.30;    // head bump center as fraction of pad_height
+neck_center_frac  = 0.70;    // neck dip center — raised for shorter pad
+head_sigma_frac   = 0.22;    // head Gaussian spread — widened for shorter pad
+neck_sigma_frac   = 0.18;    // neck Gaussian spread — widened for shorter pad
 
 // ── Drainage ────────────────────────────────────────────────────────────────
 drain_hole_d      = 8;       // bottom drain hole diameter (mm)
@@ -250,31 +250,6 @@ module curved_gap_3d() {
 }
 
 // ============================================================================
-// MODULE: slot_external_fillets — round the exterior corners where slot
-// arms meet the pad body. Subtracts quarter-cylinder notches from the
-// outside of the slot opening, creating visible rounded transitions.
-// ============================================================================
-module slot_external_fillets() {
-    r = slot_fillet;
-
-    // Bottom arm — exterior bottom edge (where bottom arm meets pad below)
-    translate([slot_depth, slot_y_start, -1])
-        linear_extrude(pad_width + 2)
-            difference() {
-                square([r, r]);
-                translate([0, r]) circle(r = r, $fn = 32);
-            }
-
-    // Top arm — exterior top edge (where top arm meets pad above)
-    translate([slot_depth, slot_y_end - r, -1])
-        linear_extrude(pad_width + 2)
-            difference() {
-                square([r, r]);
-                translate([0, 0]) circle(r = r, $fn = 32);
-            }
-}
-
-// ============================================================================
 // MODULE: spa_headrest — complete 3D assembly
 // Solid pad body with curved slot, gussets, and friction ribs
 // No inner cavity — body is completely solid for clean printing
@@ -291,8 +266,6 @@ module spa_headrest() {
         }
         // Subtract the slot gap (curved to follow tile arc)
         curved_gap_3d();
-        // Subtract external fillets at slot-to-body junction
-        slot_external_fillets();
         // Subtract drain holes
         drain_holes();
     }
