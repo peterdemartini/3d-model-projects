@@ -151,10 +151,10 @@ module pad_profile_2d() {
 // Rectangle representing the open channel between the arms
 // ============================================================================
 module slot_gap_2d() {
-    // The gap between the two arms, open to the right (toward person)
-    // Extends from spine (X = spine_thick) to beyond slot_depth
-    translate([spine_thick, bot_inner_y])
-        square([slot_depth - spine_thick + 1, slot_gap]);
+    // The gap between the two arms, open all the way to the back (X=0)
+    // Arms are connected to the pad body at X=slot_depth — no spine needed
+    translate([-1, bot_inner_y])
+        square([slot_depth + 2, slot_gap]);
 }
 
 // ============================================================================
