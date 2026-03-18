@@ -530,69 +530,120 @@ def check_wall_thickness(mesh) -> ValidationResult:
         return _warn("wall_thickness", f"Wall thickness check skipped: {exc}")
 
 
-def check_contact_face_coverage(
-    mesh,
-    face_axis: int = 0,
-    face_side: str = "max",
-    sweep_axis: int = 1,
-    height_axis: int = 2,
-    min_coverage_pct: float = 90.0,
-    num_samples: int = 50,
-) -> ValidationResult:
-    """
-    Check that a contact face (e.g. headrest front) has continuous shell material.
+# ── Spa-headrest checks ──────────────────────────────────────────────────────
 
-    Casts rays inward from the face at evenly spaced positions along sweep_axis,
-    at mid-height on height_axis. Reports the percentage of rays that hit geometry.
-
-    Parameters:
-        face_axis: axis perpendicular to the contact face (0=X, 1=Y, 2=Z)
-        face_side: "max" or "min" — which end of face_axis the contact face is on
-        sweep_axis: axis to sweep sample positions along (the width)
-        height_axis: remaining axis (used for mid-height sampling)
-        min_coverage_pct: minimum % of sample rays that must hit geometry
-        num_samples: number of rays to cast across sweep_axis
-    """
+def check_max_profile_depth(mesh, meta: dict) -> ValidationResult:
+    """Check that the smallest bounding-box dimension does not exceed max_depth_mm + 2 mm tolerance."""
+    max_depth = float(meta["dimensions"]["max_depth_mm"])
+    tolerance = 2.0
     bounds = mesh.bounds
-    sweep_min = bounds[0][sweep_axis]
-    sweep_max = bounds[1][sweep_axis]
-    height_mid = (bounds[0][height_axis] + bounds[1][height_axis]) / 2
+    size = bounds[1] - bounds[0]
+    smallest = float(np.min(size))
 
-    if face_side == "max":
-        face_coord = bounds[1][face_axis] + 5.0
-        direction_sign = -1.0
-    else:
-        face_coord = bounds[0][face_axis] - 5.0
-        direction_sign = 1.0
-
-    # Margin: skip ends (end caps will always have material)
-    margin = (sweep_max - sweep_min) * 0.05
-    positions = np.linspace(sweep_min + margin, sweep_max - margin, num_samples)
-
-    origins = np.zeros((num_samples, 3))
-    directions = np.zeros((num_samples, 3))
-    for i, pos in enumerate(positions):
-        origins[i][face_axis] = face_coord
-        origins[i][sweep_axis] = pos
-        origins[i][height_axis] = height_mid
-        directions[i][face_axis] = direction_sign
-
-    locations, index_ray, _ = mesh.ray.intersects_location(
-        ray_origins=origins, ray_directions=directions, multiple_hits=False
-    )
-
-    hits = len(set(index_ray))
-    coverage_pct = 100.0 * hits / num_samples
-
-    if coverage_pct >= min_coverage_pct:
+    if smallest <= max_depth + tolerance:
         return _pass(
-            "contact_face_coverage",
-            f"Contact face coverage = {coverage_pct:.0f}% ({hits}/{num_samples} rays hit)",
+            "max_profile_depth",
+            f"Smallest bounding-box dimension {smallest:.1f} mm "
+            f"≤ max depth {max_depth:.0f} mm (+{tolerance:.0f} mm tolerance)",
         )
     return _fail(
-        "contact_face_coverage",
-        f"Contact face coverage = {coverage_pct:.0f}% ({hits}/{num_samples} rays hit, "
-        f"need ≥{min_coverage_pct:.0f}%). Front face may have gaps or only partial shell.",
+        "max_profile_depth",
+        f"Smallest bounding-box dimension {smallest:.1f} mm "
+        f"> max depth {max_depth:.0f} mm (+{tolerance:.0f} mm tolerance). "
+        "Profile may be too thick for the spa headrest slot.",
+    )
+
+
+def check_no_interior_trapped_volumes(mesh) -> ValidationResult:
+    """Check that all connected bodies are individually watertight with positive volume."""
+    bodies = mesh.split()
+    failed = []
+    for i, body in enumerate(bodies):
+        if not body.is_watertight:
+            failed.append(f"body {i} not watertight")
+        elif body.volume <= 0:
+            failed.append(f"body {i} has non-positive volume ({body.volume:.2f})")
+
+    if failed:
+        return _fail(
+            "no_interior_trapped_volumes",
+            f"Interior trapped volumes detected: {'; '.join(failed)}",
+        )
+    return _pass(
+        "no_interior_trapped_volumes",
+        f"All {len(bodies)} body(ies) are watertight with positive volume",
+    )
+
+
+def check_max_overhang_angle(mesh, max_angle_deg: float = 45.0) -> ValidationResult:
+    """Check that downward-facing faces do not exceed the overhang angle threshold."""
+    z_component = mesh.face_normals[:, 2]
+    # Downward-facing faces have z_component < 0
+    downward = z_component < 0
+    overhang_threshold = np.cos(np.radians(max_angle_deg))
+    problematic = downward & (np.abs(z_component) < overhang_threshold)
+    n_total = len(z_component)
+    n_problematic = int(np.sum(problematic))
+    pct = n_problematic / n_total * 100 if n_total > 0 else 0.0
+
+    if pct > 5.0:
+        return _fail(
+            "max_overhang_angle",
+            f"{pct:.1f}% of faces ({n_problematic}/{n_total}) exceed "
+            f"{max_angle_deg:.0f}° overhang threshold (>5% limit)",
+        )
+    if pct > 0:
+        return _warn(
+            "max_overhang_angle",
+            f"{pct:.1f}% of faces ({n_problematic}/{n_total}) exceed "
+            f"{max_angle_deg:.0f}° overhang threshold (within 1-5% warning range)",
+        )
+    return _pass(
+        "max_overhang_angle",
+        f"No faces exceed {max_angle_deg:.0f}° overhang threshold",
+    )
+
+
+def check_slot_curvature(mesh, meta: dict) -> ValidationResult:
+    """Check that the slot back-face curvature (sagitta) matches expected arc geometry."""
+    arc_radius = float(meta["slot"]["arc_radius_mm"])
+    slot_width = float(meta["slot"]["width_mm"])
+    tolerance = 2.0
+
+    # Expected sagitta: R - sqrt(R^2 - (W/2)^2)
+    half_w = slot_width / 2.0
+    if arc_radius < half_w:
+        return _fail(
+            "slot_curvature",
+            f"Arc radius {arc_radius:.1f} mm < half slot width {half_w:.1f} mm — invalid geometry",
+        )
+    expected_sagitta = arc_radius - np.sqrt(arc_radius**2 - half_w**2)
+
+    # Find back-face vertices (those near minimum X)
+    verts = mesh.vertices
+    min_x = float(np.min(verts[:, 0]))
+    back_mask = verts[:, 0] <= min_x + 2.0
+    back_verts = verts[back_mask]
+
+    if len(back_verts) < 2:
+        return _fail(
+            "slot_curvature",
+            "Could not find enough back-face vertices to measure sagitta",
+        )
+
+    # Actual sagitta: range in X among back-face vertices
+    actual_sagitta = float(np.max(back_verts[:, 0]) - np.min(back_verts[:, 0]))
+
+    if abs(actual_sagitta - expected_sagitta) <= tolerance:
+        return _pass(
+            "slot_curvature",
+            f"Slot sagitta {actual_sagitta:.2f} mm ≈ expected {expected_sagitta:.2f} mm "
+            f"(±{tolerance:.0f} mm tolerance)",
+        )
+    return _fail(
+        "slot_curvature",
+        f"Slot sagitta {actual_sagitta:.2f} mm ≠ expected {expected_sagitta:.2f} mm "
+        f"(±{tolerance:.0f} mm tolerance). Check arc_radius and slot width.",
     )
 
 
@@ -662,7 +713,19 @@ def validate_file(
         if "closure" in meta:
             results.append(check_closure_clearance(meta))
 
-    # 14. Multi-color / Bambu AMS check — WARN if 3MF is monochrome
+    # 14. Spa-headrest meta checks (from sidecar .meta.json if present)
+    if meta is not None:
+        if "slot" in meta:
+            results.append(check_slot_curvature(mesh, meta))
+        if "dimensions" in meta:
+            results.append(check_max_profile_depth(mesh, meta))
+
+    # 15. Spa-headrest general geometry checks
+    if meta is not None and "slot" in meta:
+        results.append(check_no_interior_trapped_volumes(mesh))
+        results.append(check_max_overhang_angle(mesh))
+
+    # 16. Multi-color / Bambu AMS check — WARN if 3MF is monochrome
     results.append(check_3mf_has_colors(path))
 
     return results
