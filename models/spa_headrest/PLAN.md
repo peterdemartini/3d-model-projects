@@ -1,95 +1,107 @@
-# Spa Headrest — Design Specification
+# PLAN.md — Spa Headrest 3D Model
+
+Persistent specification document. **Update this file with every iteration** that
+changes dimensions, tolerances, or design decisions. Keep the iteration log current.
+
+---
 
 ## Model Identity
 
-| Field          | Value                                          |
-|----------------|------------------------------------------------|
-| Name           | Spa Headrest — Pillow-Style with Tile Clip     |
-| Version        | 001                                            |
-| Source         | `models/spa_headrest/spa_headrest_001.scad`     |
-| Output         | `models/spa_headrest/output/`                   |
-| Branch         | `claude/trusting-lalande`                       |
-| Material       | PETG (240°C nozzle, 70°C bed)                  |
+| Field           | Value                                           |
+|-----------------|-------------------------------------------------|
+| Model name      | `spa_headrest`                                  |
+| Current version | `002`                                           |
+| Source file     | `models/spa_headrest/spa_headrest_002.scad`     |
+| Output dir      | `models/spa_headrest/output/`                   |
+
+---
 
 ## Design Intent
 
-A pillow-shaped headrest that clips onto a spa tile overhang via a friction-fit slot. The front face has a smooth, flowing ergonomic contour (convex at head height, concave at neck) for comfortable head and neck support. Triangular gussets above and below the slot transfer head load into the tile and prevent rotation.
+Solid-body spa headrest with curved tile slot for 7' diameter spa wall, printed
+flat in PETG. v2 redesign addressing v1 spaghetti (hollow interior), flat slot,
+and oversized profile.
 
-## Tile Parameters
-
-| Parameter         | Value    | Notes                              |
-|-------------------|----------|------------------------------------|
-| Tile thickness    | 29.32 mm | Measured                           |
-| Tile overhang     | 40 mm    | How far tile extends into spa      |
-| Tile surface      | Smooth / glazed | Requires friction features  |
+---
 
 ## Overall Dimensions
 
-| Axis | Dimension | Description                                   |
-|------|-----------|-----------------------------------------------|
-| X    | ~119 mm   | Depth — pad + slot depth                      |
-| Y    | 250 mm    | Width — along tile edge                       |
-| Z    | ~188 mm   | Height — pad height (print orientation)       |
+| Parameter              | Value   |
+|------------------------|---------|
+| Pad width (Z axis)     | 200 mm  |
+| Pad height (Y axis)    | 150 mm  |
+| Pad depth (X axis)     | 55 mm   |
+| Corner radius          | 30 mm   |
 
-**Print pose**: back surface flat on bed, slot/supports facing up.
+---
 
-## Component Specifications
+## Slot Parameters
 
-### Pad (main body)
+| Parameter              | Value                                        |
+|------------------------|----------------------------------------------|
+| Slot gap               | 29.0 mm (0.32 mm interference on 29.32 mm tile) |
+| Slot depth             | 40 mm                                        |
+| Slot arm thickness     | 5 mm                                         |
+| Slot curvature radius  | 1066.8 mm (7' diameter / 2)                  |
+| Sagitta over 200 mm width | ~4.7 mm                                   |
+| Slot chamfer           | 2 mm                                         |
+| Friction rib height    | 0.4 mm                                       |
+| Friction rib spacing   | 2 mm center-to-center                        |
+| Friction rib width     | 1.0 mm                                       |
 
-| Parameter              | Value   | Notes                           |
-|------------------------|---------|---------------------------------|
-| Width                  | 250 mm  | Along tile edge (Z axis)        |
-| Height                 | 200 mm  | Vertical coverage               |
-| Depth (max)            | 80 mm   | Back to contour peak            |
-| Wall thickness         | 6 mm    | Hollow shell                    |
-| Top corner radius      | 40 mm   | Rounded top corners             |
-| Bottom corners         | Square  | Flat base for printing          |
+---
 
-### Front Face Contour (Ergonomic)
+## Contour Parameters
 
-| Parameter              | Value   | Notes                           |
-|------------------------|---------|---------------------------------|
-| Head bulge             | +10 mm  | Convex at upper zone            |
-| Neck dip               | -12 mm  | Concave at mid zone (the dent)  |
-| Head center            | 70%     | From bottom (140mm up)          |
-| Neck center            | 40%     | From bottom (80mm up)           |
-| Profile                | Gaussian| Smooth flowing, no hard zones   |
+| Parameter              | Value                |
+|------------------------|----------------------|
+| Head bulge             | +10 mm               |
+| Neck dip               | -10 mm               |
+| Head center fraction   | 0.30 (from top)      |
+| Neck center fraction   | 0.60 (from top)      |
+| Head sigma fraction    | 0.18                 |
+| Neck sigma fraction    | 0.15                 |
 
-### Tile Slot
+---
 
-| Parameter           | Value   | Notes                              |
-|---------------------|---------|------------------------------------|
-| Slot gap            | 28.8 mm | Interference fit on 29.32mm tile   |
-| Slot depth          | 40 mm   | How far tile inserts               |
-| Arm thickness       | 5 mm    | Top and bottom arms                |
-| Entry chamfer       | 2 mm    | Flare at slot opening              |
-| Friction ribs       | 0.4 mm  | Height, 2mm spacing, 1mm width    |
+## Body Style
 
-### Triangle Supports
+Solid (no interior cavity; slicer handles infill at 15% gyroid). This eliminates
+the v1 spaghetti problem caused by the hollow shell.
 
-| Feature              | Description                               |
-|----------------------|-------------------------------------------|
-| Top gusset           | Pad top to slot top, full width           |
-| Bottom gusset        | Slot bottom to pad bottom, full width     |
-| Purpose              | Transfer load, prevent rotation           |
+---
 
-### Drainage
+## Drainage
 
-| Feature               | Spec                              |
-|-----------------------|-----------------------------------|
-| Bottom drain holes    | 3 holes, 8mm diameter             |
-| Internal rib notches  | Drainage cutouts at bottom        |
+3 x 8 mm holes at bottom of pad body.
 
-### Structure
+---
 
-| Parameter           | Value   | Notes                              |
-|---------------------|---------|------------------------------------|
-| Internal ribs       | 3       | Structural ribs, 3mm thick         |
-| Shell construction   | Hollow | 6mm walls with offset cavity       |
+## Material
+
+PETG (240C nozzle, 70C bed)
+
+---
+
+## Print Orientation
+
+`rotate([90, 0, 0])` -- pad bottom on bed, slot extending backward. All
+overhangs <45 degrees.
+
+---
 
 ## Iteration Log
 
-| Version | Date       | Changes                                    |
-|---------|------------|--------------------------------------------|
-| 001     | 2026-03-16 | Initial pillow-style design with tile slot  |
+| Version | Date       | Changes                                             |
+|---------|------------|-----------------------------------------------------|
+| 001     | 2026-03-06 | Initial design (branch `claude/trusting-lalande`). Issues: spaghetti from hollow interior, flat slot doesn't match curved tile, 80 mm depth too thick. |
+| 002     | 2026-03-17 | Redesign -- solid body, curved slot (R=1066.8 mm), reduced dimensions (200x150x55 mm), looser slot fit (29.0 mm gap). Validated: 1580 faces, 790 vertices, 2,547 cm³, watertight, 104.8 × 200.0 × 150.0 mm. |
+
+---
+
+## Known Issues / Watch Items
+
+- Rounded top corners produce 8.7% overhanging faces (WARN, below 10% threshold)
+- Slot curvature is in subtracted gap — not validatable from external mesh
+- Curvature approximated with 20 hull-connected slices (smooth enough for 4.7mm sagitta)
+- Print time estimate: ~6-8h at 15% gyroid infill

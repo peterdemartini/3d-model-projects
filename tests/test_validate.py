@@ -2,8 +2,6 @@
 tests/test_validate.py — Unit tests for scripts/validate.py
 """
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 import trimesh
@@ -16,12 +14,15 @@ from validate import (
     ValidationResult,
     check_build_volume,
     check_closure_clearance,
-    check_contact_face_coverage,
     check_file_exists,
     check_hinge_parameters,
+    check_max_overhang_angle,
+    check_max_profile_depth,
     check_no_degenerate_faces,
+    check_no_interior_trapped_volumes,
     check_non_empty,
     check_positive_volume,
+    check_slot_curvature,
     check_supported_format,
     check_watertight,
     collect_files,
@@ -457,48 +458,150 @@ def test_closure_clearance_fail_too_tight():
     assert "clearance" in result.message.lower()
 
 
-# ── check_contact_face_coverage ──────────────────────────────────────────────
+# ── check_max_profile_depth ──────────────────────────────────────────────────
 
-def test_contact_face_coverage_pass_solid_box():
-    """A solid box has full coverage on any face — should pass."""
-    mesh = trimesh.creation.box(extents=(80, 250, 200))
-    result = check_contact_face_coverage(
-        mesh, face_axis=0, face_side="max", sweep_axis=1,
-        height_axis=2, min_coverage_pct=90.0,
-    )
+def test_max_profile_depth_pass():
+    """Box 55×150×200 mm with max_depth_mm=55 should pass (smallest dim=55 ≤ 55+2)."""
+    mesh = make_box_mesh(size=(55, 150, 200))
+    meta = {"dimensions": {"max_depth_mm": 55}}
+    result = check_max_profile_depth(mesh, meta)
     assert result.status == ValidationResult.PASS
 
 
-def test_contact_face_coverage_fail_sparse_ribs():
-    """Three thin slabs spaced across a wide span — most rays should miss,
-    coverage should fail."""
-    # 3 thin ribs: 80mm deep (X), 3mm wide (Y), 200mm tall (Z)
-    # placed at Y=62, Y=125, Y=187 across a 250mm span
-    ribs = []
-    for y_pos in [62, 125, 187]:
-        rib = trimesh.creation.box(extents=(80, 3, 200))
-        rib.apply_translation([40, y_pos, 100])
-        ribs.append(rib)
-    mesh = trimesh.util.concatenate(ribs)
-    result = check_contact_face_coverage(
-        mesh, face_axis=0, face_side="max", sweep_axis=1,
-        height_axis=2, min_coverage_pct=90.0,
-    )
+def test_max_profile_depth_fail():
+    """Box 80×150×200 mm with max_depth_mm=55 should fail (smallest dim=80 > 55+2)."""
+    mesh = make_box_mesh(size=(80, 150, 200))
+    meta = {"dimensions": {"max_depth_mm": 55}}
+    result = check_max_profile_depth(mesh, meta)
     assert result.status == ValidationResult.FAIL
-    assert "coverage" in result.message.lower()
 
 
-def test_contact_face_coverage_pass_real_stl():
-    """The spa headrest STL should have ≥90% front face coverage after fix."""
-    stl_path = "models/spa_headrest/output/spa_headrest_001.stl"
-    if not Path(stl_path).exists():
-        pytest.skip("STL not exported locally (gitignored output/)")
-    mesh = trimesh.load(stl_path)
-    # In print orientation: X=depth (front face at max X), Y=width (sweep), Z=height
-    result = check_contact_face_coverage(
-        mesh, face_axis=0, face_side="max", sweep_axis=1,
-        height_axis=2, min_coverage_pct=90.0,
-    )
-    assert result.status == ValidationResult.PASS, (
-        f"Front face coverage too low: {result.message}"
-    )
+# ── check_no_interior_trapped_volumes ────────────────────────────────────────
+
+def test_no_interior_trapped_volumes_pass():
+    """Single watertight box has no trapped volumes."""
+    mesh = make_box_mesh(size=(50, 50, 50))
+    result = check_no_interior_trapped_volumes(mesh)
+    assert result.status == ValidationResult.PASS
+
+
+def test_no_interior_trapped_volumes_fail():
+    """Mesh with a small box inside a large box creates a trapped volume (non-watertight combined body)."""
+    outer = trimesh.creation.box(extents=(50, 50, 50))
+    inner = trimesh.creation.box(extents=(10, 10, 10))
+    # Flip inner normals to simulate a void (inverted shell)
+    inner.invert()
+    combined = trimesh.util.concatenate([outer, inner])
+    # The combined mesh splits into two bodies; the inverted inner is not watertight
+    # in the conventional sense (volume will be negative)
+    result = check_no_interior_trapped_volumes(combined)
+    assert result.status == ValidationResult.FAIL
+
+
+# ── check_max_overhang_angle ─────────────────────────────────────────────────
+
+def test_max_overhang_angle_pass():
+    """Box mesh has faces at 0° and 90° from Z — no overhangs."""
+    mesh = make_box_mesh(size=(50, 50, 50))
+    result = check_max_overhang_angle(mesh)
+    assert result.status == ValidationResult.PASS
+
+
+def test_max_overhang_angle_fail():
+    """Mesh with many steep downward-facing faces should fail."""
+    # Create a near-vertical tube-like shape where faces point slightly downward.
+    # For the overhang check: downward (z<0) AND abs(z) < cos(45°)=0.707
+    # This means faces with small negative z-component (nearly horizontal normals
+    # pointing slightly down). A tall, narrow inverted cone achieves this.
+    vertices = np.array([
+        [0, 0, 100],    # apex (top)
+        [50, 0, 0],     # base ring (bottom, wide = steep sides)
+        [35, 35, 0],
+        [0, 50, 0],
+        [-35, 35, 0],
+        [-50, 0, 0],
+        [-35, -35, 0],
+        [0, -50, 0],
+        [35, -35, 0],
+    ], dtype=float)
+    # Wind so normals point inward-and-downward (small negative z-component)
+    faces = np.array([
+        [0, 1, 2],
+        [0, 2, 3],
+        [0, 3, 4],
+        [0, 4, 5],
+        [0, 5, 6],
+        [0, 6, 7],
+        [0, 7, 8],
+        [0, 8, 1],
+    ], dtype=int)
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    # These faces should have normals pointing slightly downward (small negative z)
+    z_comp = mesh.face_normals[:, 2]
+    # If normals point up, flip winding
+    if np.all(z_comp > 0):
+        mesh.faces = mesh.faces[:, ::-1]
+        z_comp = mesh.face_normals[:, 2]
+    assert np.all(z_comp < 0), "Test fixture faces must point downward"
+    assert np.all(np.abs(z_comp) < np.cos(np.radians(45.0))), \
+        "Test fixture faces must be steep overhangs"
+    result = check_max_overhang_angle(mesh)
+    assert result.status in (ValidationResult.FAIL, ValidationResult.WARN)
+
+
+# ── check_slot_curvature ─────────────────────────────────────────────────────
+
+def test_slot_curvature_pass():
+    """Mesh with back-face vertices matching expected sagitta should pass."""
+    # Use a large radius so sagitta is small enough to fit within the 2mm back-face window.
+    # R=5000, W=200 → sagitta = 5000 - sqrt(5000^2 - 100^2) ≈ 1.0 mm
+    arc_radius = 5000.0
+    slot_width = 200.0
+    half_w = slot_width / 2.0
+    expected_sagitta = arc_radius - np.sqrt(arc_radius**2 - half_w**2)  # ~1.0 mm
+
+    # Back-face vertices: edges at min_x=0, center at x=expected_sagitta (~1.0 mm)
+    # All within 2mm of min_x, so all selected as back-face vertices.
+    vertices = np.array([
+        [0.0, 0.0, -100.0],               # back edge (min X)
+        [0.0, 0.0, 100.0],                # back edge (min X)
+        [expected_sagitta, 0.0, 0.0],     # back center (~1.0 mm from min X)
+        [100.0, 0.0, -100.0],             # front vertex (far from back)
+        [100.0, 0.0, 100.0],              # front vertex
+    ], dtype=float)
+    faces = np.array([
+        [0, 1, 2],
+        [0, 2, 3],
+        [2, 1, 4],
+        [3, 2, 4],
+    ], dtype=int)
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    meta = {"slot": {"arc_radius_mm": arc_radius, "width_mm": slot_width}}
+    result = check_slot_curvature(mesh, meta)
+    assert result.status == ValidationResult.PASS
+
+
+def test_slot_curvature_fail_flat():
+    """Flat back face (sagitta ≈ 0) when curvature expected should fail."""
+    # R=1066.8, W=200 → expected sagitta ≈ 4.7 mm; actual = 0 → diff > 2mm → FAIL
+    arc_radius = 1066.8
+    slot_width = 200.0
+
+    # Build a flat back face: all back verts at the same X → sagitta = 0
+    vertices = np.array([
+        [0.0, 0.0, -100.0],
+        [0.0, 0.0, 100.0],
+        [0.0, 0.0, 0.0],     # all at X=0 → sagitta=0
+        [100.0, 0.0, -100.0],
+        [100.0, 0.0, 100.0],
+    ], dtype=float)
+    faces = np.array([
+        [0, 1, 2],
+        [0, 2, 3],
+        [2, 1, 4],
+        [3, 2, 4],
+    ], dtype=int)
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    meta = {"slot": {"arc_radius_mm": arc_radius, "width_mm": slot_width}}
+    result = check_slot_curvature(mesh, meta)
+    assert result.status == ValidationResult.FAIL
