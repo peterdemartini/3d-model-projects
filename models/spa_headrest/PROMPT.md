@@ -135,6 +135,67 @@ After export, always copy STL to `~/Downloads/`.
 - Slot curvature is in the subtracted gap, not measurable from external mesh vertices
 - 2 degenerate faces occasionally appear in export (from hull slice boundaries) — harmless
 
+## Workflow & Team Structure
+
+### Development Discipline: Red-Green-Refactor
+
+Every code change follows RGR with separate commits (see `AGENTS.md` for full details):
+
+1. **RED** — Write failing tests/validation thresholds first (`test:` prefix)
+2. **GREEN** — Minimum code to pass (`feat:` prefix)
+3. **REFACTOR** — Clean up, extract constants, update docs (`refactor:` prefix)
+
+### Team Roles (from original sprint)
+
+| Role | Responsibility |
+|------|---------------|
+| **Architect** | Design authority — owns geometry decisions, printability sign-off, reviews all changes |
+| **Team Lead** | Execution owner — enforces RGR, manages sprint, owns simulations.md |
+| **SWE-GEO** | Geometry & parametric modeling — writes the .scad code |
+| **SWE-PRINT** | Print optimization — slicer settings, orientation, support analysis |
+| **SWE-TEST** | Validation & testing — writes tests, runs validate.py, creates .meta.json |
+
+The team uses the persona-evolution system (agents name themselves on first spawn).
+Persona state persists in `.personas/` if present.
+
+### Commit Conventions
+
+- Prefix: `feat:`, `fix:`, `test:`, `refactor:`, `docs:`
+- Always push after committing
+- Always rebase onto latest main before creating PRs
+- Always copy exported STL to `~/Downloads/` after export
+
+### OpenSCAD Skills
+
+Three skills in `.claude/skills/`:
+- `/openscad` — Design, versioning, auto-render PNG
+- `/preview-scad` — Re-render to PNG
+- `/export-stl` — Export to STL with geometry validation
+
+### Validation Pipeline
+
+```
+/openscad → /preview-scad → /export-stl → python scripts/validate.py → cp to ~/Downloads/
+```
+
+The validator (`scripts/validate.py`) runs 14+ checks. Spa-headrest-specific
+checks are triggered by keys in the `.meta.json` sidecar (`"slot"`,
+`"dimensions"`, `"overhang"`). Tests in `tests/test_validate.py` (55 total).
+
+### Key Project Files
+
+| File | Purpose |
+|------|---------|
+| `AGENTS.md` | Printer specs, validation framework, RGR workflow, design guidelines |
+| `models/spa_headrest/PROMPT.md` | This file — session context |
+| `models/spa_headrest/PLAN.md` | Persistent spec (needs updating) |
+| `models/spa_headrest/simulations.md` | Validation expectations and actual results |
+| `models/spa_headrest/print-settings.md` | BambuStudio recommendations |
+| `models/spa_headrest/spa_headrest_002.scad` | Current model source |
+| `models/spa_headrest/output/spa_headrest_002.meta.json` | Validation metadata |
+| `scripts/validate.py` | 14+ check validation framework |
+| `tests/test_validate.py` | 55 unit tests |
+
 ## What Needs Doing Next
 
 - Update PLAN.md to match actual current dimensions
