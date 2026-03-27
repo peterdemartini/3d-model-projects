@@ -11,11 +11,15 @@ from validate import (
     BUILD_VOLUME_MM,
     LID_SLOT_CLEARANCE_MIN_MM,
     PIN_HEAD_CLEARANCE_MIN_MM,
+    SWEEP_MIN_CLEARANCE_MM,
     ValidationResult,
+    _point_to_box_clearance,
+    _rotate_point_around_x,
     check_build_volume,
     check_closure_clearance,
     check_file_exists,
     check_hinge_parameters,
+    check_hinge_sweep,
     check_max_overhang_angle,
     check_max_profile_depth,
     check_no_degenerate_faces,
@@ -26,6 +30,7 @@ from validate import (
     check_supported_format,
     check_watertight,
     collect_files,
+    compute_hinge_sweep_clearances,
     validate_file,
 )
 
@@ -605,3 +610,165 @@ def test_slot_curvature_fail_flat():
     meta = {"slot": {"arc_radius_mm": arc_radius, "width_mm": slot_width}}
     result = check_slot_curvature(mesh, meta)
     assert result.status == ValidationResult.FAIL
+
+
+# ── Hinge sweep helpers ─────────────────────────────────────────────────────
+
+def test_rotate_point_identity():
+    """0-degree rotation is identity."""
+    y, z = _rotate_point_around_x(3.0, 5.0, 0.0)
+    assert abs(y - 3.0) < 1e-9
+    assert abs(z - 5.0) < 1e-9
+
+
+def test_rotate_point_90():
+    """90-degree rotation swaps Y→-Z, Z→Y."""
+    y, z = _rotate_point_around_x(1.0, 0.0, 90.0)
+    assert abs(y - 0.0) < 1e-9
+    assert abs(z - 1.0) < 1e-9
+
+
+def test_rotate_point_180():
+    """180-degree rotation negates both axes."""
+    y, z = _rotate_point_around_x(3.0, 5.0, 180.0)
+    assert abs(y - (-3.0)) < 1e-9
+    assert abs(z - (-5.0)) < 1e-9
+
+
+def test_point_to_box_inside():
+    """Point inside box returns negative distance."""
+    d = _point_to_box_clearance(5.0, 5.0, 0.0, 10.0, 0.0, 10.0)
+    assert d < 0
+
+
+def test_point_to_box_outside():
+    """Point outside box returns positive distance."""
+    d = _point_to_box_clearance(15.0, 5.0, 0.0, 10.0, 0.0, 10.0)
+    assert d > 0
+
+
+def test_point_to_box_on_edge():
+    """Point on box edge returns zero distance."""
+    d = _point_to_box_clearance(10.0, 5.0, 0.0, 10.0, 0.0, 10.0)
+    assert abs(d) < 1e-9
+
+
+# ── compute_hinge_sweep_clearances ──────────────────────────────────────────
+
+def _make_sweep_meta(
+    barrel_od=12.0,
+    slot_clearance=0.5,
+    slot_y_extra=1.0,
+    slot_z_extra=2.0,
+    base_d=180.0,
+    base_h=10.0,
+    lid_h=8.0,
+    hard_stop=135,
+    stop_lug_h=2.5,
+    stop_lug_w=4.0,
+    shoulder_y_offset_factor=0.5,
+    shoulder_z_offset=-1.0,
+    **hinge_kwargs,
+):
+    """Return a meta dict with full hinge sweep parameters."""
+    hinge = {
+        "pin_d_mm": hinge_kwargs.get("pin_d", 4.0),
+        "bore_d_mm": hinge_kwargs.get("bore_d", 5.0),
+        "barrel_od_mm": barrel_od,
+        "hard_stop_angle_deg": hard_stop,
+        "min_wall_mm": 1.2,
+        "type": "interleaved_knuckle",
+        "n_knuckles": 7,
+        "knuckle_gap_mm": 0.5,
+        "lid_slot_clearance_mm": slot_clearance,
+        "pin_head_clearance_mm": 0.25,
+        "base_d_mm": base_d,
+        "base_h_mm": base_h,
+        "lid_h_mm": lid_h,
+        "slot_y_extra_mm": slot_y_extra,
+        "slot_z_extra_mm": slot_z_extra,
+        "stop_lug_h_mm": stop_lug_h,
+        "stop_lug_w_mm": stop_lug_w,
+        "stop_shoulder_y_offset_factor": shoulder_y_offset_factor,
+        "stop_shoulder_z_offset_mm": shoulder_z_offset,
+    }
+    return {"hinge": hinge}
+
+
+def test_compute_sweep_clearances_structure():
+    """Pure function returns dict with required keys."""
+    result = compute_hinge_sweep_clearances(
+        barrel_r=6.0, slot_clearance=0.5, slot_y_extra=1.0, slot_z_extra=2.0,
+        base_d=180.0, base_h=10.0, lid_h=8.0, hard_stop_angle=135,
+        stop_lug_h=2.5, stop_lug_w=4.0,
+        shoulder_y_offset_factor=0.5, shoulder_z_offset=-1.0,
+    )
+    assert "min_clearance_mm" in result
+    assert "min_clearance_angle_deg" in result
+    assert "min_clearance_pair" in result
+    assert "collision_detected" in result
+    assert isinstance(result["min_clearance_mm"], float)
+    assert isinstance(result["collision_detected"], bool)
+
+
+def test_compute_sweep_clearances_v003_no_collision():
+    """v003 geometry (current) should have no collisions."""
+    result = compute_hinge_sweep_clearances(
+        barrel_r=6.0, slot_clearance=0.5, slot_y_extra=1.0, slot_z_extra=2.0,
+        base_d=180.0, base_h=10.0, lid_h=8.0, hard_stop_angle=135,
+        stop_lug_h=2.5, stop_lug_w=4.0,
+        shoulder_y_offset_factor=0.5, shoulder_z_offset=-1.0,
+    )
+    assert not result["collision_detected"]
+    assert result["min_clearance_mm"] >= SWEEP_MIN_CLEARANCE_MM
+
+
+def test_compute_sweep_clearances_barrel_constant():
+    """Barrel clearance should be identical at all angles (coaxial)."""
+    result = compute_hinge_sweep_clearances(
+        barrel_r=6.0, slot_clearance=0.5, slot_y_extra=1.0, slot_z_extra=2.0,
+        base_d=180.0, base_h=10.0, lid_h=8.0, hard_stop_angle=135,
+        stop_lug_h=2.5, stop_lug_w=4.0,
+        shoulder_y_offset_factor=0.5, shoulder_z_offset=-1.0,
+    )
+    if "clearance_by_angle" in result:
+        barrel_clearances = [
+            entry["clearances"].get("barrel_vs_slot", None)
+            for entry in result["clearance_by_angle"]
+            if "barrel_vs_slot" in entry.get("clearances", {})
+        ]
+        if barrel_clearances:
+            assert max(barrel_clearances) - min(barrel_clearances) < 1e-6
+
+
+# ── check_hinge_sweep ──────────────────────────────────────────────────────
+
+def test_hinge_sweep_pass():
+    """v003 geometry with standard slot clearances should pass."""
+    meta = _make_sweep_meta()
+    result = check_hinge_sweep(meta)
+    assert result.status == ValidationResult.PASS
+
+
+def test_hinge_sweep_fail_no_slot_extra():
+    """Zero slot extras should cause collision or insufficient clearance."""
+    meta = _make_sweep_meta(slot_y_extra=0.0, slot_z_extra=0.0)
+    result = check_hinge_sweep(meta)
+    # With no extra slot margin, the barrel barely fits — clearance below threshold
+    assert result.status == ValidationResult.FAIL
+
+
+def test_hinge_sweep_fail_oversized_stop_lug():
+    """Oversized stop lug (10mm) should interfere with base shoulder at non-stop angles."""
+    meta = _make_sweep_meta(stop_lug_h=10.0, stop_lug_w=10.0)
+    result = check_hinge_sweep(meta)
+    assert result.status == ValidationResult.FAIL
+
+
+def test_hinge_sweep_min_clearance_reported():
+    """Result message should include minimum clearance value and angle."""
+    meta = _make_sweep_meta()
+    result = check_hinge_sweep(meta)
+    assert "min clearance" in result.message.lower() or "clearance" in result.message.lower()
+    # Should mention the angle of minimum clearance
+    assert "°" in result.message or "deg" in result.message
