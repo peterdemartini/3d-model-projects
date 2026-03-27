@@ -267,17 +267,20 @@ module lid() {
             cube([screen_w, screen_h_val, screen_depth]);
 
         // ── Slots for base barrel knuckles (even indices 0, 2, 4, 6) ─────
-        // Mirror of base's lid-knuckle slots: cut away the lid body where it
-        // would overlap base barrel cylinders near the hinge axis (Y=0, Z=0).
-        // Without these slots the lid plate fuses with base barrels during FDM
-        // printing and the hinge cannot rotate.
-        // Z-extent matches base slots: +4.5 for swept arc clearance.
+        // Cut away lid body where it overlaps base barrel cylinders at the
+        // hinge axis (Y=0, Z=0). The lid plate starts at Y=0 and extends in +Y,
+        // while the base barrel extends barrel_r into +Y. The slot must clear
+        // the FULL barrel diameter (barrel_od) plus clearance from the lid plate,
+        // not just one radius — otherwise the lid plate physically intersects
+        // the base barrels and the hinge cannot rotate.
+        // Y-extent: barrel_od + 2*slot_clearance + 1.0 = full barrel diameter + margin
+        // Z-extent: barrel_od + 2*slot_clearance + 4.5 = swept arc clearance
         for (i = [0 : 2 : n_knuckles - 1]) {
             translate([knuckle_x(i) - knuckle_gap,
                        -barrel_r - slot_clearance,
                        -barrel_r - slot_clearance])
                 cube([knuckle_w + 2 * knuckle_gap,
-                      barrel_r + slot_clearance + 1.0,
+                      barrel_od + 2 * slot_clearance + 1.0,
                       barrel_od + 2 * slot_clearance + 4.5]);
         }
     }
