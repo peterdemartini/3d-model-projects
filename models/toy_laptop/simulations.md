@@ -417,3 +417,33 @@ Update this section after each version is validated.
   - `hinge_parameters`: PASS — pin 4.0, bore 5.0, radial clearance 0.50 mm,
     barrel wall 3.50 mm, knuckle gap 0.50 mm, hard stop 135°
   - All other checks: same as v002 (PASS or non-blocking WARN)
+
+### v004 — Slot Z-extent fix for full sweep clearance (Operation Free Hinge)
+- Date: 2026-03-26
+- Changes:
+  - **Sweep clearance analysis added**: New `check_hinge_sweep()` in validate.py
+    analytically computes clearance between moving lid geometry and stationary
+    base geometry at 1-degree increments from 0° to 135°.
+  - **Bug found**: v003's `slot_z_extra=2.0` was insufficient. At 6°, the lid
+    outer face (5mm from hinge axis, 8mm thick) sweeps to within 0.02mm of the
+    slot ceiling. The swept arc radius is `sqrt((barrel_r+slot_clearance)^2 + lid_h^2)`
+    = `sqrt(6.5^2 + 8^2)` = 10.31mm, exceeding the slot's 8.5mm above hinge axis.
+  - **Fix**: Increased `slot_z_extra` from 2.0 to 4.5mm in both base and lid slot
+    cutouts. This extends the slot Z-extent from 15.0mm to 17.5mm, providing
+    ≥ 0.3mm clearance at all angles.
+  - **meta.json updated**: Added sweep geometry fields (`base_d_mm`, `base_h_mm`,
+    `lid_h_mm`, `slot_y_extra_mm`, `slot_z_extra_mm`, `stop_lug_h_mm`,
+    `stop_lug_w_mm`, `stop_shoulder_y_offset_factor`, `stop_shoulder_z_offset_mm`).
+  - **14 new unit tests**: Helpers, pure computation, validation check (pass/fail/boundary).
+  - **Visualization**: `scripts/hinge_sweep_plot.py` generates clearance-vs-angle
+    plot and JSON data.
+- Sweep analysis results (after fix):
+  - Minimum clearance: **0.354 mm** at 135° (lid_plate_vs_base)
+  - barrel_vs_slot: constant 0.500 mm (coaxial, as expected)
+  - stop_lug_vs_shoulder: constant ~5.83 mm (well clear at all angles)
+  - Collision detected: **No**
+  - Status: **PASS** (all clearances ≥ 0.3mm)
+- Validation results:
+  - `hinge_sweep`: PASS — min clearance 0.35 mm at 135° (lid_plate_vs_base)
+  - `hinge_parameters`: PASS — same as v003
+  - All other checks: same as v003
