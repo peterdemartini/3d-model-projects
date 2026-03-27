@@ -756,7 +756,7 @@ def test_compute_sweep_clearances_barrel_constant():
 # ── check_hinge_sweep ──────────────────────────────────────────────────────
 
 def test_hinge_sweep_pass():
-    """v003 geometry with standard slot clearances should pass."""
+    """v004 geometry with corrected slot_z_extra=4.5 should pass."""
     meta = _make_sweep_meta()
     result = check_hinge_sweep(meta)
     assert result.status == ValidationResult.PASS

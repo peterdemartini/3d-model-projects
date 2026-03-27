@@ -438,7 +438,7 @@ def compute_hinge_sweep_clearances(
     # Base body region (the solid part, excluding the slot cutout)
     # The base body is a box from (Y=0, Z=0) to (Y=base_d, Z=base_h).
     # At lid-knuckle X positions, a slot is cut:
-    slot_y_start = base_d - barrel_r - slot_clearance
+    slot_y_start = base_d - barrel_r - slot_clearance - slot_y_extra
     slot_y_end = base_d  # slot goes to rear edge
     slot_z_start = base_h - barrel_r - slot_clearance
     slot_z_end = slot_z_start + 2 * barrel_r + 2 * slot_clearance + slot_z_extra
@@ -514,10 +514,10 @@ def compute_hinge_sweep_clearances(
                 slot_cl = min(dist_to_slot_y, dist_to_slot_z_lo, dist_to_slot_z_hi)
                 min_plate_clearance = min(min_plate_clearance, slot_cl)
             else:
-                # Point is outside base body — compute distance to base
-                dist_y = max(0 - y_asm, y_asm - base_d, 0)
-                dist_z = max(0 - z_asm, z_asm - base_h, 0)
-                clearance = max(dist_y, dist_z)
+                # Point is outside base body — Euclidean distance in YZ
+                dist_y = max(0 - y_asm, y_asm - base_d, 0.0)
+                dist_z = max(0 - z_asm, z_asm - base_h, 0.0)
+                clearance = float(np.hypot(dist_y, dist_z))
                 min_plate_clearance = min(min_plate_clearance, clearance)
 
         angle_clearances["lid_plate_vs_base"] = min_plate_clearance
@@ -528,12 +528,28 @@ def compute_hinge_sweep_clearances(
             # Barrel points are in hinge-axis coords, already in assembly:
             y_asm = base_d + by
             z_asm = base_h + bz
-            # Check distance to slot walls
-            if slot_y_start <= y_asm <= slot_y_end and slot_z_start <= z_asm <= slot_z_end:
+
+            in_base_y = 0 <= y_asm <= base_d
+            in_base_z = 0 <= z_asm <= base_h
+            in_slot_y = slot_y_start <= y_asm <= slot_y_end
+            in_slot_z = slot_z_start <= z_asm <= slot_z_end
+
+            if in_base_y and in_base_z and not (in_slot_y and in_slot_z):
+                # Barrel point is inside base body but outside slot — collision
+                pen_y = min(y_asm, base_d - y_asm)
+                pen_z = min(z_asm, base_h - z_asm)
+                min_barrel_clearance = min(min_barrel_clearance, -min(pen_y, pen_z))
+            elif in_slot_y and in_slot_z:
+                # Point is in the slot — compute distance to slot walls
                 dist_y = y_asm - slot_y_start
                 dist_z_lo = z_asm - slot_z_start
                 dist_z_hi = slot_z_end - z_asm
                 min_barrel_clearance = min(min_barrel_clearance, dist_y, dist_z_lo, dist_z_hi)
+            else:
+                # Point is outside base body — Euclidean distance
+                dist_y = max(0 - y_asm, y_asm - base_d, 0.0)
+                dist_z = max(0 - z_asm, z_asm - base_h, 0.0)
+                min_barrel_clearance = min(min_barrel_clearance, float(np.hypot(dist_y, dist_z)))
 
         angle_clearances["barrel_vs_slot"] = min_barrel_clearance
 
@@ -579,9 +595,10 @@ def compute_hinge_sweep_clearances(
 def check_hinge_sweep(meta: dict) -> ValidationResult:
     """Validate hinge rotation clearance across the full angle range.
 
-    Uses geometry parameters from meta["hinge"] to analytically compute
-    clearance between moving lid geometry and stationary base geometry
-    at 1-degree increments from 0 to hard_stop_angle.
+    Uses geometry parameters from meta["hinge"] to numerically estimate
+    clearance between the moving lid geometry and stationary base geometry
+    by sampling at fixed angle increments (e.g., 1 degree) from 0 to
+    hard_stop_angle rather than performing a continuous analytic proof.
     """
     h = meta["hinge"]
     barrel_r = float(h["barrel_od_mm"]) / 2
@@ -970,7 +987,13 @@ def validate_file(
         if "hinge" in meta:
             results.append(check_hinge_parameters(meta))
             if "base_d_mm" in meta["hinge"]:
-                results.append(check_hinge_sweep(meta))
+                try:
+                    results.append(check_hinge_sweep(meta))
+                except KeyError as exc:
+                    results.append(_warn(
+                        "hinge_sweep",
+                        f"Skipped: missing hinge metadata key {exc}",
+                    ))
         if "closure" in meta:
             results.append(check_closure_clearance(meta))
 
