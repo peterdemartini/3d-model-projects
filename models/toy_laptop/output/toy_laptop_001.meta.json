@@ -10,7 +10,16 @@
     "n_knuckles": 7,
     "knuckle_gap_mm": 0.5,
     "lid_slot_clearance_mm": 0.5,
-    "pin_head_clearance_mm": 0.25
+    "pin_head_clearance_mm": 0.25,
+    "base_d_mm": 180,
+    "base_h_mm": 10,
+    "lid_h_mm": 8,
+    "slot_y_extra_mm": 1.0,
+    "slot_z_extra_mm": 4.5,
+    "stop_lug_h_mm": 2.5,
+    "stop_lug_w_mm": 4.0,
+    "stop_shoulder_y_offset_factor": 0.5,
+    "stop_shoulder_z_offset_mm": -1.0
   },
   "closure": {
     "base_d_mm": 180,

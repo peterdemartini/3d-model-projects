@@ -193,10 +193,12 @@ module base() {
         // ── Slots for lid knuckles to rotate through the base rear edge ─
         // At lid knuckle X positions (odd indices 1, 3, 5), cut a slot
         // so the full-cylinder lid knuckle can sweep through 0°–135°.
-        // Extra slot_clearance in Y and Z to prevent binding.
+        // Z-extent derived from swept arc: the lid outer face at distance
+        // lid_h from hinge axis sweeps to sqrt((barrel_r+slot_clearance)^2 + lid_h^2)
+        // above the axis at small opening angles. +4.5 provides ≥ 0.3 mm margin.
         for (i = [1 : 2 : n_knuckles - 1]) {
             translate([knuckle_x(i) - knuckle_gap, base_d - barrel_r - slot_clearance, base_h - barrel_r - slot_clearance])
-                cube([knuckle_w + 2 * knuckle_gap, barrel_r + slot_clearance + 1.0, barrel_od + 2 * slot_clearance + 2.0]);
+                cube([knuckle_w + 2 * knuckle_gap, barrel_r + slot_clearance + 1.0, barrel_od + 2 * slot_clearance + 4.5]);
         }
     }
 }
@@ -269,13 +271,14 @@ module lid() {
         // would overlap base barrel cylinders near the hinge axis (Y=0, Z=0).
         // Without these slots the lid plate fuses with base barrels during FDM
         // printing and the hinge cannot rotate.
+        // Z-extent matches base slots: +4.5 for swept arc clearance.
         for (i = [0 : 2 : n_knuckles - 1]) {
             translate([knuckle_x(i) - knuckle_gap,
                        -barrel_r - slot_clearance,
                        -barrel_r - slot_clearance])
                 cube([knuckle_w + 2 * knuckle_gap,
                       barrel_r + slot_clearance + 1.0,
-                      barrel_od + 2 * slot_clearance + 2.0]);
+                      barrel_od + 2 * slot_clearance + 4.5]);
         }
     }
 }

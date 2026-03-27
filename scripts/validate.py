@@ -32,6 +32,10 @@ HARD_STOP_MAX_DEG = 135
 LID_SLOT_CLEARANCE_MIN_MM = 0.4
 PIN_HEAD_CLEARANCE_MIN_MM = 0.20
 
+# ── Hinge sweep validation thresholds ─────────────────────────────────────────
+SWEEP_ANGLE_STEP_DEG = 1.0
+SWEEP_MIN_CLEARANCE_MM = 0.3
+
 # ── Closure validation thresholds ────────────────────────────────────────────
 MIN_CLOSURE_CLEARANCE_MM = 2.0
 
@@ -366,6 +370,256 @@ def check_hinge_parameters(meta: dict) -> ValidationResult:
             f"pin head clearance {pin_head_clearance:.2f} mm, hard stop {hard_stop:.0f}°",
         )
     return _fail("hinge_parameters", "; ".join(issues))
+
+
+# ── Hinge sweep clearance helpers ────────────────────────────────────────────
+
+def _rotate_point_around_x(y: float, z: float, angle_deg: float) -> tuple[float, float]:
+    """Rotate point (y, z) around the X-axis by angle_deg degrees. Returns (y', z')."""
+    rad = np.radians(angle_deg)
+    c, s = np.cos(rad), np.sin(rad)
+    return float(y * c - z * s), float(y * s + z * c)
+
+
+def _point_to_box_clearance(
+    py: float, pz: float,
+    box_y_min: float, box_y_max: float,
+    box_z_min: float, box_z_max: float,
+) -> float:
+    """Signed distance from point (py, pz) to axis-aligned box in YZ plane.
+
+    Returns negative if inside, positive if outside, zero on boundary.
+    """
+    # Distance to each face (positive = outside that face)
+    dy_min = box_y_min - py  # positive if point is below y_min
+    dy_max = py - box_y_max  # positive if point is above y_max
+    dz_min = box_z_min - pz
+    dz_max = pz - box_z_max
+
+    # If all are negative, point is inside — return negative of min penetration
+    if dy_min <= 0 and dy_max <= 0 and dz_min <= 0 and dz_max <= 0:
+        return max(dy_min, dy_max, dz_min, dz_max)  # negative, closest to 0
+
+    # Point is outside — return distance to nearest face (positive)
+    outside_y = max(dy_min, dy_max, 0.0)
+    outside_z = max(dz_min, dz_max, 0.0)
+    return float(np.sqrt(outside_y**2 + outside_z**2))
+
+
+def compute_hinge_sweep_clearances(
+    barrel_r: float,
+    slot_clearance: float,
+    slot_y_extra: float,
+    slot_z_extra: float,
+    base_d: float,
+    base_h: float,
+    lid_h: float,
+    hard_stop_angle: float,
+    stop_lug_h: float,
+    stop_lug_w: float,
+    shoulder_y_offset_factor: float,
+    shoulder_z_offset: float,
+    angle_step: float = SWEEP_ANGLE_STEP_DEG,
+) -> dict:
+    """Compute clearance between moving lid geometry and stationary base geometry
+    at each angle from 0 to hard_stop_angle.
+
+    The hinge axis is at assembly (Y=base_d, Z=base_h). The lid rotates by
+    (180 - angle) degrees around X. In lid-local coords, the hinge axis is
+    at (Y=0, Z=0).
+
+    Returns dict with:
+      - min_clearance_mm: overall minimum clearance across all angles
+      - min_clearance_angle_deg: angle at minimum clearance
+      - min_clearance_pair: geometry pair name at minimum
+      - collision_detected: True if any clearance < 0
+      - clearance_by_angle: list of {angle, clearances: {pair: value}}
+    """
+    # Base body region (the solid part, excluding the slot cutout)
+    # The base body is a box from (Y=0, Z=0) to (Y=base_d, Z=base_h).
+    # At lid-knuckle X positions, a slot is cut:
+    slot_y_start = base_d - barrel_r - slot_clearance
+    slot_y_end = base_d  # slot goes to rear edge
+    slot_z_start = base_h - barrel_r - slot_clearance
+    slot_z_end = slot_z_start + 2 * barrel_r + 2 * slot_clearance + slot_z_extra
+
+    # Base hard-stop shoulder (assembly coords)
+    shoulder_y_min = base_d + barrel_r * shoulder_y_offset_factor
+    shoulder_y_max = shoulder_y_min + stop_lug_h
+    shoulder_z_min = base_h + barrel_r + shoulder_z_offset
+    shoulder_z_max = shoulder_z_min + stop_lug_w
+
+    # Lid geometry points in lid-local coords (Y=0 is hinge axis, Z=0 is inner face)
+    # Critical points on the lid plate near the hinge:
+    # The lid plate extends from Y=0 to Y=base_d, Z=0 (inner) to Z=-lid_h (outer).
+    # Near the hinge, the most critical points are at small Y values.
+    lid_plate_points = []
+    for y_l in [0.0, 0.5, 1.0, 2.0, 5.0]:
+        for z_l in [0.0, -lid_h / 2, -lid_h]:
+            lid_plate_points.append((y_l, z_l))
+
+    # Barrel boundary points (circle at hinge axis, r=barrel_r)
+    barrel_points = []
+    for angle_sample in range(0, 360, 15):
+        rad = np.radians(angle_sample)
+        barrel_points.append((barrel_r * np.cos(rad), barrel_r * np.sin(rad)))
+
+    # Stop lug corners in lid-local coords
+    # The stop lug is at (Y=-stop_lug_h, Z=0) to (Y=0, Z=stop_lug_w)
+    lug_corners = [
+        (-stop_lug_h, 0.0),
+        (-stop_lug_h, stop_lug_w),
+        (0.0, 0.0),
+        (0.0, stop_lug_w),
+    ]
+
+    clearance_by_angle = []
+    global_min = float("inf")
+    global_min_angle = 0.0
+    global_min_pair = ""
+    collision = False
+
+    angles = np.arange(0, hard_stop_angle + angle_step / 2, angle_step)
+
+    for theta in angles:
+        rotation = 180.0 - theta
+        angle_clearances = {}
+
+        # --- Check 1: lid plate points vs base body (excluding slot) ---
+        min_plate_clearance = float("inf")
+        for y_l, z_l in lid_plate_points:
+            y_rot, z_rot = _rotate_point_around_x(y_l, z_l, rotation)
+            y_asm = base_d + y_rot
+            z_asm = base_h + z_rot
+
+            # Check if point is inside the base body (Y in [0, base_d], Z in [0, base_h])
+            # but NOT inside the slot cutout
+            in_base_y = 0 <= y_asm <= base_d
+            in_base_z = 0 <= z_asm <= base_h
+            in_slot_y = slot_y_start <= y_asm <= slot_y_end
+            in_slot_z = slot_z_start <= z_asm <= slot_z_end
+
+            if in_base_y and in_base_z and not (in_slot_y and in_slot_z):
+                # Point is inside base body (collision!)
+                # Compute penetration depth as negative clearance
+                pen_y = min(y_asm, base_d - y_asm)
+                pen_z = min(z_asm, base_h - z_asm)
+                clearance = -min(pen_y, pen_z)
+                min_plate_clearance = min(min_plate_clearance, clearance)
+            elif in_slot_y and in_slot_z:
+                # Point is in the slot — compute distance to slot walls
+                dist_to_slot_y = y_asm - slot_y_start  # distance from front wall of slot
+                dist_to_slot_z_lo = z_asm - slot_z_start
+                dist_to_slot_z_hi = slot_z_end - z_asm
+                slot_cl = min(dist_to_slot_y, dist_to_slot_z_lo, dist_to_slot_z_hi)
+                min_plate_clearance = min(min_plate_clearance, slot_cl)
+            else:
+                # Point is outside base body — compute distance to base
+                dist_y = max(0 - y_asm, y_asm - base_d, 0)
+                dist_z = max(0 - z_asm, z_asm - base_h, 0)
+                clearance = max(dist_y, dist_z)
+                min_plate_clearance = min(min_plate_clearance, clearance)
+
+        angle_clearances["lid_plate_vs_base"] = min_plate_clearance
+
+        # --- Check 2: barrel vs slot (sanity — should be constant) ---
+        min_barrel_clearance = float("inf")
+        for by, bz in barrel_points:
+            # Barrel points are in hinge-axis coords, already in assembly:
+            y_asm = base_d + by
+            z_asm = base_h + bz
+            # Check distance to slot walls
+            if slot_y_start <= y_asm <= slot_y_end and slot_z_start <= z_asm <= slot_z_end:
+                dist_y = y_asm - slot_y_start
+                dist_z_lo = z_asm - slot_z_start
+                dist_z_hi = slot_z_end - z_asm
+                min_barrel_clearance = min(min_barrel_clearance, dist_y, dist_z_lo, dist_z_hi)
+
+        angle_clearances["barrel_vs_slot"] = min_barrel_clearance
+
+        # --- Check 3: stop lug vs base shoulder ---
+        min_lug_clearance = float("inf")
+        for y_l, z_l in lug_corners:
+            y_rot, z_rot = _rotate_point_around_x(y_l, z_l, rotation)
+            y_asm = base_d + y_rot
+            z_asm = base_h + z_rot
+
+            lug_cl = _point_to_box_clearance(
+                y_asm, z_asm,
+                shoulder_y_min, shoulder_y_max,
+                shoulder_z_min, shoulder_z_max,
+            )
+            min_lug_clearance = min(min_lug_clearance, lug_cl)
+
+        angle_clearances["stop_lug_vs_shoulder"] = min_lug_clearance
+
+        # --- Track overall minimum ---
+        for pair_name, cl in angle_clearances.items():
+            if cl < global_min:
+                global_min = cl
+                global_min_angle = float(theta)
+                global_min_pair = pair_name
+            if cl < 0:
+                collision = True
+
+        clearance_by_angle.append({
+            "angle": float(theta),
+            "clearances": angle_clearances,
+        })
+
+    return {
+        "min_clearance_mm": float(global_min),
+        "min_clearance_angle_deg": global_min_angle,
+        "min_clearance_pair": global_min_pair,
+        "collision_detected": collision,
+        "clearance_by_angle": clearance_by_angle,
+    }
+
+
+def check_hinge_sweep(meta: dict) -> ValidationResult:
+    """Validate hinge rotation clearance across the full angle range.
+
+    Uses geometry parameters from meta["hinge"] to analytically compute
+    clearance between moving lid geometry and stationary base geometry
+    at 1-degree increments from 0 to hard_stop_angle.
+    """
+    h = meta["hinge"]
+    barrel_r = float(h["barrel_od_mm"]) / 2
+
+    result = compute_hinge_sweep_clearances(
+        barrel_r=barrel_r,
+        slot_clearance=float(h.get("lid_slot_clearance_mm", 0.5)),
+        slot_y_extra=float(h["slot_y_extra_mm"]),
+        slot_z_extra=float(h["slot_z_extra_mm"]),
+        base_d=float(h["base_d_mm"]),
+        base_h=float(h["base_h_mm"]),
+        lid_h=float(h["lid_h_mm"]),
+        hard_stop_angle=float(h["hard_stop_angle_deg"]),
+        stop_lug_h=float(h["stop_lug_h_mm"]),
+        stop_lug_w=float(h["stop_lug_w_mm"]),
+        shoulder_y_offset_factor=float(h["stop_shoulder_y_offset_factor"]),
+        shoulder_z_offset=float(h["stop_shoulder_z_offset_mm"]),
+    )
+
+    min_cl = result["min_clearance_mm"]
+    min_angle = result["min_clearance_angle_deg"]
+    min_pair = result["min_clearance_pair"]
+
+    if result["collision_detected"] or min_cl < SWEEP_MIN_CLEARANCE_MM:
+        return _fail(
+            "hinge_sweep",
+            f"Sweep clearance insufficient: min clearance {min_cl:.2f} mm "
+            f"at {min_angle:.0f}° ({min_pair}), "
+            f"required ≥ {SWEEP_MIN_CLEARANCE_MM} mm",
+        )
+
+    return _pass(
+        "hinge_sweep",
+        f"Sweep clearance OK: min clearance {min_cl:.2f} mm "
+        f"at {min_angle:.0f}° ({min_pair}), "
+        f"checked 0°–{float(h['hard_stop_angle_deg']):.0f}° "
+        f"in {SWEEP_ANGLE_STEP_DEG}° steps",
+    )
 
 
 def check_closure_clearance(meta: dict) -> ValidationResult:
@@ -715,6 +969,8 @@ def validate_file(
     if meta is not None:
         if "hinge" in meta:
             results.append(check_hinge_parameters(meta))
+            if "base_d_mm" in meta["hinge"]:
+                results.append(check_hinge_sweep(meta))
         if "closure" in meta:
             results.append(check_closure_clearance(meta))
 

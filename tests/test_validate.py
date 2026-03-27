@@ -659,7 +659,7 @@ def _make_sweep_meta(
     barrel_od=12.0,
     slot_clearance=0.5,
     slot_y_extra=1.0,
-    slot_z_extra=2.0,
+    slot_z_extra=4.5,
     base_d=180.0,
     base_h=10.0,
     lid_h=8.0,
@@ -711,10 +711,22 @@ def test_compute_sweep_clearances_structure():
     assert isinstance(result["collision_detected"], bool)
 
 
-def test_compute_sweep_clearances_v003_no_collision():
-    """v003 geometry (current) should have no collisions."""
+def test_compute_sweep_clearances_v003_old_slot_insufficient():
+    """v003 geometry with old slot_z_extra=2.0 has insufficient clearance."""
     result = compute_hinge_sweep_clearances(
         barrel_r=6.0, slot_clearance=0.5, slot_y_extra=1.0, slot_z_extra=2.0,
+        base_d=180.0, base_h=10.0, lid_h=8.0, hard_stop_angle=135,
+        stop_lug_h=2.5, stop_lug_w=4.0,
+        shoulder_y_offset_factor=0.5, shoulder_z_offset=-1.0,
+    )
+    assert not result["collision_detected"]  # no actual collision, just too tight
+    assert result["min_clearance_mm"] < SWEEP_MIN_CLEARANCE_MM  # below threshold
+
+
+def test_compute_sweep_clearances_v004_no_collision():
+    """v004 geometry with corrected slot_z_extra=4.5 should pass."""
+    result = compute_hinge_sweep_clearances(
+        barrel_r=6.0, slot_clearance=0.5, slot_y_extra=1.0, slot_z_extra=4.5,
         base_d=180.0, base_h=10.0, lid_h=8.0, hard_stop_angle=135,
         stop_lug_h=2.5, stop_lug_w=4.0,
         shoulder_y_offset_factor=0.5, shoulder_z_offset=-1.0,
@@ -758,9 +770,11 @@ def test_hinge_sweep_fail_no_slot_extra():
     assert result.status == ValidationResult.FAIL
 
 
-def test_hinge_sweep_fail_oversized_stop_lug():
-    """Oversized stop lug (10mm) should interfere with base shoulder at non-stop angles."""
-    meta = _make_sweep_meta(stop_lug_h=10.0, stop_lug_w=10.0)
+def test_hinge_sweep_fail_thick_lid():
+    """Very thick lid (20mm) sweeps far outside the slot Z-extent."""
+    # lid_h=20 means the outer face sweeps to sqrt(6.5^2 + 20^2) = 21.03mm
+    # above hinge axis, far exceeding the standard slot.
+    meta = _make_sweep_meta(lid_h=20.0)
     result = check_hinge_sweep(meta)
     assert result.status == ValidationResult.FAIL
 
