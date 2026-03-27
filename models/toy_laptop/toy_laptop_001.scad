@@ -193,10 +193,12 @@ module base() {
         // ── Slots for lid knuckles to rotate through the base rear edge ─
         // At lid knuckle X positions (odd indices 1, 3, 5), cut a slot
         // so the full-cylinder lid knuckle can sweep through 0°–135°.
-        // Extra slot_clearance in Y and Z to prevent binding.
+        // Z-extent derived from swept arc: the lid outer face at distance
+        // lid_h from hinge axis sweeps to sqrt((barrel_r+slot_clearance)^2 + lid_h^2)
+        // above the axis at small opening angles. +4.5 provides ≥ 0.3 mm margin.
         for (i = [1 : 2 : n_knuckles - 1]) {
             translate([knuckle_x(i) - knuckle_gap, base_d - barrel_r - slot_clearance, base_h - barrel_r - slot_clearance])
-                cube([knuckle_w + 2 * knuckle_gap, barrel_r + slot_clearance + 1.0, barrel_od + 2 * slot_clearance + 2.0]);
+                cube([knuckle_w + 2 * knuckle_gap, barrel_r + slot_clearance + 1.0, barrel_od + 2 * slot_clearance + 4.5]);
         }
     }
 }
@@ -265,17 +267,21 @@ module lid() {
             cube([screen_w, screen_h_val, screen_depth]);
 
         // ── Slots for base barrel knuckles (even indices 0, 2, 4, 6) ─────
-        // Mirror of base's lid-knuckle slots: cut away the lid body where it
-        // would overlap base barrel cylinders near the hinge axis (Y=0, Z=0).
-        // Without these slots the lid plate fuses with base barrels during FDM
-        // printing and the hinge cannot rotate.
+        // Cut away lid body where it overlaps base barrel cylinders at the
+        // hinge axis (Y=0, Z=0). The lid plate starts at Y=0 and extends in +Y,
+        // while the base barrel extends barrel_r into +Y. The slot must clear
+        // the FULL barrel diameter (barrel_od) plus clearance from the lid plate,
+        // not just one radius — otherwise the lid plate physically intersects
+        // the base barrels and the hinge cannot rotate.
+        // Y-extent: barrel_od + 2*slot_clearance + 1.0 = full barrel diameter + margin
+        // Z-extent: barrel_od + 2*slot_clearance + 4.5 = swept arc clearance
         for (i = [0 : 2 : n_knuckles - 1]) {
             translate([knuckle_x(i) - knuckle_gap,
                        -barrel_r - slot_clearance,
                        -barrel_r - slot_clearance])
                 cube([knuckle_w + 2 * knuckle_gap,
-                      barrel_r + slot_clearance + 1.0,
-                      barrel_od + 2 * slot_clearance + 2.0]);
+                      barrel_od + 2 * slot_clearance + 1.0,
+                      barrel_od + 2 * slot_clearance + 4.5]);
         }
     }
 }
@@ -337,20 +343,34 @@ module trackpad_plate() {
 //   90° CCW rotation the model stays in the positive-XYZ octant.
 //   New footprint: X = base_d = 180 mm, Y = base_w = 250 mm, Z = 190 mm.
 //
-// ── Color export control ──────────────────────────────────────────────────────
-// RENDER_COLOR controls which color body is rendered/exported.
-//   "all"   — full model with color() wrappers (default; used for OpenSCAD GUI preview)
-//   "white" — only white parts (base, lid body with integrated pin); for per-color 3MF export
-//   "black" — only black parts (keycaps, trackpad plate, screen plate); for per-color export
+// ── Export control ────────────────────────────────────────────────────────────
+// Two independent filters control what geometry is rendered/exported:
 //
-// Usage:
-//   openscad --export-format 3mf toy_laptop_001.scad                      → full preview
-//   openscad --export-format 3mf -D 'RENDER_COLOR="white"' ... → white body only
-//   openscad --export-format 3mf -D 'RENDER_COLOR="black"' ... → black body only
+// RENDER_COLOR — which color body:
+//   "all"   — full model with color() wrappers (default; for OpenSCAD GUI preview)
+//   "white" — white parts only (base, lid body with integrated pin)
+//   "black" — black parts only (keycaps, trackpad plate, screen plate)
 //
-// After exporting both bodies, run scripts/colorize_3mf.py to merge them into a
-// single Bambu-compatible multi-object 3MF with <m:colorgroup> assignments.
+// RENDER_BODY — which physical body (critical for print-in-place hinge):
+//   "all"  — everything (default; for preview only — base+lid FUSE in CGAL union)
+//   "base" — base body only (base plate, base barrels, base hard-stop shoulders)
+//   "lid"  — lid body only (lid plate, lid barrels, integrated pin, stop lug)
+//
+// WHY RENDER_BODY EXISTS:
+//   OpenSCAD's CGAL kernel implicitly unions all top-level geometry. When base
+//   and lid share the hinge axis edge (Y=base_d, Z=base_h), CGAL merges them
+//   into ONE connected body — destroying the print-in-place gap. By exporting
+//   base and lid as separate 3MF files and combining them as separate <object>
+//   elements, the slicer sees two independent bodies with physical separation.
+//
+// Export pipeline (4 renders → scripts/assemble_3mf.py → 1 multi-object 3MF):
+//   openscad -D 'RENDER_COLOR="white"' -D 'RENDER_BODY="base"' → white_base.3mf
+//   openscad -D 'RENDER_COLOR="white"' -D 'RENDER_BODY="lid"'  → white_lid.3mf
+//   openscad -D 'RENDER_COLOR="black"' -D 'RENDER_BODY="base"' → black_base.3mf
+//   openscad -D 'RENDER_COLOR="black"' -D 'RENDER_BODY="lid"'  → black_lid.3mf
+//   python scripts/assemble_3mf.py → toy_laptop_001.3mf (4 objects, 2 colors)
 RENDER_COLOR = "all";   // "all" | "white" | "black"
+RENDER_BODY  = "all";   // "all" | "base" | "lid"
 
 // Barrel/pin axis is at Y=base_d, Z=base_h (rear top edge of base)
 hinge_y = base_d;
@@ -362,32 +382,36 @@ hinge_z = base_h;
 translate([base_w, 0, 0])
 rotate([0, 0, 90]) {
 
-    // ── WHITE parts ─────────────────────────────────────────────────────
-    if (RENDER_COLOR == "all" || RENDER_COLOR == "white") {
-        // Base body (without keycaps) — includes base-side barrel knuckles
+    // ── WHITE BASE ───────────────────────────────────────────────────────
+    if ((RENDER_COLOR == "all" || RENDER_COLOR == "white") &&
+        (RENDER_BODY  == "all" || RENDER_BODY  == "base")) {
         color("white")
             base();
+    }
 
-        // Lid body (without screen plate) — includes lid-side barrel knuckles
-        // and integrated pin shaft (print-in-place captive pin)
+    // ── WHITE LID ────────────────────────────────────────────────────────
+    if ((RENDER_COLOR == "all" || RENDER_COLOR == "white") &&
+        (RENDER_BODY  == "all" || RENDER_BODY  == "lid")) {
         color("white")
             translate([0, hinge_y, hinge_z])
                 rotate([(180 - hinge_angle), 0, 0])
                     lid_body();
     }
 
-    // ── BLACK parts ─────────────────────────────────────────────────────
-    if (RENDER_COLOR == "all" || RENDER_COLOR == "black") {
-        // Keycap tops — placed at keyboard bed origin (same as kb_bed_recess origin)
+    // ── BLACK BASE (keycaps + trackpad) ──────────────────────────────────
+    if ((RENDER_COLOR == "all" || RENDER_COLOR == "black") &&
+        (RENDER_BODY  == "all" || RENDER_BODY  == "base")) {
         color("black")
             translate([kb_x0 - kb_bed_margin, kb_y0 - kb_bed_margin, base_h - bed_depth])
                 kb_keycaps();
 
-        // Trackpad indicator (black plate in trackpad recess)
         color("black")
             trackpad_plate();
+    }
 
-        // Screen indicator (black plate inside screen pocket)
+    // ── BLACK LID (screen plate) ─────────────────────────────────────────
+    if ((RENDER_COLOR == "all" || RENDER_COLOR == "black") &&
+        (RENDER_BODY  == "all" || RENDER_BODY  == "lid")) {
         color("black")
             translate([0, hinge_y, hinge_z])
                 rotate([(180 - hinge_angle), 0, 0])
