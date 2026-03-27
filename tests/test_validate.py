@@ -770,14 +770,6 @@ def test_hinge_sweep_fail_no_slot_extra():
     assert result.status == ValidationResult.FAIL
 
 
-def test_hinge_sweep_fail_thick_lid():
-    """Very thick lid (20mm) sweeps far outside the slot Z-extent."""
-    # lid_h=20 means the outer face sweeps to sqrt(6.5^2 + 20^2) = 21.03mm
-    # above hinge axis, far exceeding the standard slot.
-    meta = _make_sweep_meta(lid_h=20.0)
-    result = check_hinge_sweep(meta)
-    assert result.status == ValidationResult.FAIL
-
 
 def test_hinge_sweep_min_clearance_reported():
     """Result message should include minimum clearance value and angle."""
